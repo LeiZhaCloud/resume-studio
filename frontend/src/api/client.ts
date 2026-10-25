@@ -694,9 +694,16 @@ async function reformatResumeVersion(id: number, applicationId: number) {
       credentials.push({ name: entry.name, url: entry.url, description: "" });
     }
   }
-  const resume = applyResumeLayout({ ...original.structured_resume, certifications: credentials });
-  const tex = renderResumeLatex(resume);
-  const compiled = await compileResumeLatex(tex);
+  let resume = applyResumeLayout({ ...original.structured_resume, certifications: credentials });
+  let tex = renderResumeLatex(resume);
+  let compiled = await compileResumeLatex(tex);
+  // Compact optional certificate explanations before letting a small overflow create a new page.
+  // Keep all credential names/links and every existing experience bullet.
+  if (compiled.pageCount > 1 && credentials.some(entry => entry.description)) {
+    resume = { ...resume, certifications: credentials.map(entry => ({ ...entry, description: "" })) };
+    tex = renderResumeLatex(resume);
+    compiled = await compileResumeLatex(tex);
+  }
   if (compiled.pageCount < 1) throw new Error("Could not compile the updated resume.");
   // Local repair preserves existing bullets and credentials, even across multiple pages.
   return saveAssignedVersion({ application_id: applicationId, application_ids: [applicationId], company_id: app.company_id,
