@@ -2,6 +2,7 @@ import type { ResumeProfileUpdate, StructuredResume } from "../types";
 import { RESUME_JSON_SCHEMA, parseStructuredResumeJson } from "./resumeSchema";
 import { profileDetails } from "./profileDetails";
 import { masterSkills } from "./technicalSkills";
+import { sortExperience } from "./resumeLayout";
 
 const object = (properties: Record<string, unknown>) => ({ type: "object", additionalProperties: false, required: Object.keys(properties), properties });
 const list = (items: unknown) => ({ type: "array", items });
@@ -151,7 +152,13 @@ export function assembleResume(raw: string, profile: ResumeProfileUpdate): Struc
       institution: entry.institution, degree: entry.degree, location: entry.location,
       dates: formatProfileDates(entry.startDate, entry.endDate), details: [],
     })),
-    experience, projects, certifications: selectedCertifications, technicalSkills: content.technicalSkills,
+    experience: sortExperience(experience), projects,
+    // AI may shorten descriptions, but cannot silently omit saved credentials.
+    certifications: certifications(profile).map(source => ({
+      name: source.name, url: source.url,
+      description: selectedCertifications.find(entry => entry.name === source.name && entry.url === source.url)?.description ?? "",
+    })),
+    technicalSkills: content.technicalSkills,
   };
   const requireBoth = profile.workExperiences.length > 0 && profile.researchExperiences.length > 0;
   // Explicit guidance can omit a type only when all its entries carry guidance.

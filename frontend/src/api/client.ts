@@ -1,5 +1,6 @@
 import { OPENAI_MODELS, estimateInputTokens, modelInfo, defaultEffort, PRICE_CHECKED } from "../lib/aiModels";
 import { masterSkills } from "../lib/technicalSkills";
+import { applyResumeLayout } from "../lib/resumeLayout";
 import { assembleResume, resumeContentSource, resumeContentSchema } from "../lib/resumeContent";
 import { profileDetails } from "../lib/profileDetails";
 
@@ -576,7 +577,7 @@ async function generationPrompt(profileData: ResumeProfile, apps: Application[],
 }
 
 async function renderOnePageResume(initial: StructuredResume) {
-  let structuredResume = initial;
+  let structuredResume = applyResumeLayout(initial);
   let texSource = renderResumeLatex(structuredResume);
   let compilation = await compileResumeLatex(texSource);
   // Page fitting is local only: no extra paid AI calls, including after a failure.
@@ -591,6 +592,7 @@ async function renderOnePageResume(initial: StructuredResume) {
   return { structuredResume, texSource, pdfFile: compilation.pdfFile };
 }
 async function saveAssignedVersion(value: Omit<ResumeVersion, "id">) {
+  value = { ...value, structured_resume: applyResumeLayout(value.structured_resume) };
   return tx(["applications", "resume_versions"], "readwrite", async (_, transaction) => {
     const appStore = transaction.objectStore("applications");
     const store = transaction.objectStore("resume_versions");
@@ -658,9 +660,15 @@ async function refineResumeVersion(id: number, applicationId: number, content: s
     if (!settings.api_key) throw new Error("Save AI settings before refining resumes");
     const result = await callResumeAi(settings, JSON.stringify({ existingResume: resume, instruction, targetJD: app.job_description }), await profile(), true);
     resume = result.resume;
+    // AI refinement may shorten descriptions but must not drop existing credentials.
+    resume.certifications = (original.structured_resume.certifications || []).map(entry => ({
+      ...entry,
+      description: resume.certifications?.find(item => item.name === entry.name && item.url === entry.url)?.description ?? entry.description,
+    }));
     usage = result.usage;
   }
   // Refinements must not silently prune unrelated content to fit the page.
+  resume = applyResumeLayout(resume);
   const tex = renderResumeLatex(resume);
   const compiled = await compileResumeLatex(tex);
   if (compiled.pageCount !== 1) throw new Error("Refinement does not fit one page. Shorten the edited content and try again; the original version is unchanged." + (usage ? ` Estimated cost: $${usage.estimated_usd.toFixed(4)}.` : ""));
@@ -670,6 +678,32 @@ async function refineResumeVersion(id: number, applicationId: number, content: s
     parent_version_id: original.id, version_number: 0, structured_resume: resume, tex_source: tex, pdf_file: compiled.pdfFile,
     provider: settings?.provider ?? "manual", model: settings?.model ?? "Manual edit", reasoning_effort: settings?.reasoning_effort,
     ai_usage: usage, created_at: now() });
+}
+
+async function reformatResumeVersion(id: number, applicationId: number) {
+  const stored = await get<StoredResumeVersion>("resume_versions", id);
+  if (!stored) throw new Error("Resume version not found");
+  const original = hydrateResumeVersion(stored);
+  const app = await get<Application>("applications", applicationId);
+  if (!app || app.company_id !== original.company_id) throw new Error("Select an application from this company.");
+  const currentProfile = await profile();
+  const credentials = [...(original.structured_resume.certifications || [])];
+  for (const entry of currentProfile.certifications || []) {
+    if (entry.name.trim() && !credentials.some(item => item.name === entry.name && item.url === entry.url)) {
+      // Do not copy private validation notes from the profile into resume descriptions.
+      credentials.push({ name: entry.name, url: entry.url, description: "" });
+    }
+  }
+  const resume = applyResumeLayout({ ...original.structured_resume, certifications: credentials });
+  const tex = renderResumeLatex(resume);
+  const compiled = await compileResumeLatex(tex);
+  if (compiled.pageCount < 1) throw new Error("Could not compile the updated resume.");
+  // Local repair preserves existing bullets and credentials, even across multiple pages.
+  return saveAssignedVersion({ application_id: applicationId, application_ids: [applicationId], company_id: app.company_id,
+    resume_group_id: original.resume_group_id ?? `company:${original.company_id}/application:${original.application_id}`,
+    resume_title: original.resume_title || app.job_title || "Resume", parent_version_id: original.id,
+    version_number: 0, structured_resume: resume, tex_source: tex, pdf_file: compiled.pdfFile,
+    provider: "manual", model: "Layout & certification update", created_at: now() });
 }
 
 async function generateResumeVersion(applicationId: number, extraInstructions: string, applicationIds: number[] = [applicationId], resumeTitle = "") {
@@ -894,6 +928,7 @@ export const api = {
     });
   },
   refineResumeVersion,
+  reformatResumeVersion,
   generateResumeVersion,
   resumeVersions: async (applicationId: number) => {
     const [app, items] = await Promise.all([get<Application>("applications", applicationId), versions(applicationId)]);

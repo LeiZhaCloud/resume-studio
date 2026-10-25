@@ -224,6 +224,7 @@ function CompanyResumeModal({ company, features, onClose, onSaved }: {
                       <div className="resume-version-actions">
                         <button disabled={locked || !targets.length} onClick={() => mutate(() => api.assignResumeApplications(company.id, version.id, targets))}>Use for selected ({targets.length})</button>
                         <button disabled={locked || !selected} title={!selected ? "Open an application to refine this version" : ""} onClick={() => editVersion(version)}>Edit / AI refine</button>
+                        <button disabled={locked || !selected} title="Creates a new version locally: Education last, experience newest first, all profile certifications restored. Keeps existing bullets; may use multiple pages. No AI request." onClick={() => mutate(() => api.reformatResumeVersion(version.id, selected!.id))}>Update layout & certifications</button>
                         <button onClick={() => preview(version)}><Eye size={13} /> Preview</button>
                         <button onClick={() => download(version, "pdf")}><Download size={13} /> PDF</button>
                         <button onClick={() => download(version, "tex")}><FileCode2 size={13} /> .tex</button>

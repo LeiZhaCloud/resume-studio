@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { completeResume } from "../test/resumeFixtures";
 import { normalizeStoredStructuredResume, parseStructuredResumeJson, trimLowestPriorityContent } from "./resumeSchema";
 describe("structured resume schema", () => {
+  it("never drops certification names or links across all local fitting steps", () => {
+    let current = { ...structuredClone(completeResume), certifications: Array.from({ length: 7 }, (_, index) => ({ name: `Credential ${index}`, url: `https://example.com/${index}`, description: "Short focus" })) };
+    for (let step = 0; step < 150; step++) {
+      const next = trimLowestPriorityContent(current);
+      if (!next) break;
+      current = next as typeof current;
+    }
+    expect(current.certifications.map(({ name, url }) => ({ name, url }))).toEqual(Array.from({ length: 7 }, (_, index) => ({ name: `Credential ${index}`, url: `https://example.com/${index}` })));
+  });
   it("drops oversized optional highlights without losing experience or project text", () => {
     const source = structuredClone(completeResume);
     const research = source.experience[1].subprojects![0].bullets[1];

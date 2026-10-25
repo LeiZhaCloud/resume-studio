@@ -45,3 +45,11 @@ The published code and page contain no personal resume or API key. User-entered 
 New workspaces default to **DeepSeek 4.1 Flash 1017**. The official API model ID is `deepseek-flash`, currently serving DeepSeek-V4.1-Flash-1017, as documented in [DeepSeek Models & Pricing](https://api-docs.deepseek.com/quick_start/pricing/) (checked 2026-10-25). This alias follows future provider updates; it does not pin a dated checkpoint.
 
 Generation, AI refinement and Test Connection use `https://api.deepseek.com/chat/completions`, Bearer authentication and JSON output. Test Connection makes a small generation request and may incur usage. Empty, truncated or rejected responses are reported without automatic paid retries. DeepSeek cost estimates are not currently calculated. Existing saved provider selections are preserved. Switching providers clears the unsaved API key field; enter the selected provider's key and Save.
+
+## Resume layout and complete credentials
+
+The exported section order is Experience → optional Projects → Certifications → Technical Skills → Education. Experience is sorted locally by end date descending (Present first), then start date descending; missing dates remain stable at the end. This applies to generated, refined and locally updated versions without changing the profile's entered dates or entry order.
+
+Generation retains every named certification from the profile, even if AI omits it. Fitting can shorten descriptions but never removes certificate names or links. AI refinement preserves the original credential list. Source status/renewal caveats remain in the profile; missing AI descriptions stay empty rather than copying private source notes.
+
+Existing PDFs remain immutable. Use **Update layout & certifications** in Resume → Generated resumes or a company's saved versions to create a new version without an AI call. This restores missing current-profile credentials, retains historical credentials and all existing bullets, and updates only the selected application's assignment. It may span multiple pages to preserve content; original PDFs and other assignments remain available.

@@ -10,9 +10,10 @@ describe("fixed LaTeX renderer", () => {
     const projects = tex.indexOf("\\section{Projects}");
     const skills = tex.indexOf("\\section{Technical Skills}");
     expect(education).toBeGreaterThan(0);
-    expect(experience).toBeGreaterThan(education);
+    expect(experience).toBeLessThan(education);
     expect(projects).toBeGreaterThan(experience);
     expect(skills).toBeGreaterThan(projects);
+    expect(education).toBeGreaterThan(skills);
     expect(tex).toContain(escapeLatex(completeResume.experience[0].title));
     expect(tex).toContain(escapeLatex(completeResume.experience[0].organization));
     expect(tex).toContain(escapeLatex(completeResume.experience[1].title));

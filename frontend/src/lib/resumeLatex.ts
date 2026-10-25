@@ -2,6 +2,7 @@ import { skillCategories } from "./technicalSkills";
 import { certificationUrl } from "./certifications";
 import { PdfLatex } from "@typeward/texlive-wasm";
 import type { StructuredResume } from "../types";
+import { sortExperience } from "./resumeLayout";
 
 const textReplacements: Array<[RegExp, string]> = [
   [/\u00e2\u20ac\u2122/g, "'"],
@@ -128,7 +129,7 @@ function educationSection(resume: StructuredResume): string {
 }
 
 function experienceSection(resume: StructuredResume): string {
-  const entries = resume.experience.map(entry => {
+  const entries = sortExperience(resume.experience).map(entry => {
     const header = `  \\resumeSubheading{${escapeLatex(entry.title)}}{${escapeLatex(entry.dates)}}{${escapeLatex(entry.organization)}}{${escapeLatex(entry.location)}}`;
     const subs = (entry as unknown as { subprojects?: Array<{ name: string; bullets: Array<{ text: string; highlights: string[] }> }>; bullets?: string[] }).subprojects;
     let body = "";
@@ -243,12 +244,12 @@ export function renderResumeLatex(resume: StructuredResume): string {
   \small ${contact}
 \end{center}
 
-${educationSection(resume)}
-
 ${experienceSection(resume)}
 ${projects ? `\n${projects}\n` : ""}
 ${certifications ? `\n${certifications}\n` : ""}
 ${technicalSkillsSection(resume)}
+
+${educationSection(resume)}
 
 \end{document}
 `;

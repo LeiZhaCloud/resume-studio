@@ -150,6 +150,27 @@ describe("resume version persistence", () => {
     expect(await api.resumes()).toHaveLength(2);
   });
 
+  it("repairs existing layout and restores all credentials without AI or changing the original, even over one page", async () => {
+    await api.updateProfile(profile);
+    await api.saveAiSettings({ provider: "openai", model: "gpt-5.6-luna", api_key: "test-local" });
+    const app = await api.createApplication({ company_id: 1, job_title: "Platform Engineer", job_description: "Azure Kubernetes Terraform", notes: "" });
+    const original = await api.generateResumeVersion(app.id, "");
+    expect(original.structured_resume.certifications).toEqual([]);
+    await api.updateProfile({ ...profile, certifications: Array.from({ length: 7 }, (_, index) => ({ name: `Credential ${index}`, url: "", description: "Private status-check note" })) });
+    vi.mocked(compileResumeLatex).mockResolvedValueOnce({ pdfFile: new Blob(["two-page-pdf"]), pdfBytes: new Uint8Array(), pageCount: 2, log: "ok" });
+    const updated = await api.reformatResumeVersion(original.id, app.id);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(updated.structured_resume.certifications).toHaveLength(7);
+    expect(updated.structured_resume.certifications?.every(entry => entry.description === "")).toBe(true);
+    expect(updated.structured_resume.experience).toEqual(original.structured_resume.experience);
+    expect(updated.parent_version_id).toBe(original.id);
+    expect(updated.tex_source.indexOf("\\section{Education}")).toBeGreaterThan(updated.tex_source.indexOf("\\section{Technical Skills}"));
+    expect((await api.getResumeVersion(original.id))?.structured_resume.certifications).toEqual([]);
+    expect((await api.applications())[0].assigned_resume_version_id).toBe(updated.id);
+    const other = await api.createApplication({ company_id: 2, job_title: "Other", job_description: "Other JD", notes: "" });
+    await expect(api.reformatResumeVersion(original.id, other.id)).rejects.toThrow("this company");
+  });
+
   it("creates immutable v1/v2 records, exports PDF plus TeX, and deletes only one version", async () => {
     await api.saveAiSettings({ provider: "openai", model: "gpt-5.6-luna", api_key: "browser-local-test-key" });
     await api.updateProfile(profile);
@@ -169,7 +190,7 @@ describe("resume version persistence", () => {
     expect(newest?.tex_source).toContain("\\documentclass[letterpaper,11pt]{article}");
     expect(newest?.structured_resume.header.phone).toBe(profile.phone);
     expect(newest?.structured_resume.education[0].institution).toBe(profile.education[0].institution);
-    expect(newest?.structured_resume.experience[0].organization).toBe(profile.workExperiences[0].company);
+    expect(newest?.structured_resume.experience.find(entry => entry.type === "work")?.organization).toBe(profile.workExperiences[0].company);
     expect(newest?.pdf_file.type).toBe("application/pdf");
     expect(newest && "docx_file" in newest).toBe(false);
 

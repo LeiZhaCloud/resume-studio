@@ -406,7 +406,9 @@ function getAllBullets(experience: StructuredResume["experience"][number]): Arra
 export function trimLowestPriorityContent(resume: StructuredResume): StructuredResume | null {
   const next = cloneResume(resume);
   if (next.certifications?.length) {
-    // Reserve the leading experience's strongest evidence before sacrificing it for credentials.
+    // Shorten credential descriptions first; never drop a credential to fit the page.
+    const certification = [...next.certifications].reverse().find(item => item.description);
+    if (certification) { certification.description = ""; return next; }
     for (const exp of [...next.experience.slice(1)].reverse()) {
       for (const sub of [...(exp.subprojects || [])].reverse()) {
         if (sub.bullets.length > 1) { sub.bullets.pop(); return next; }
@@ -418,10 +420,6 @@ export function trimLowestPriorityContent(resume: StructuredResume): StructuredR
     if (next.projects.length) { next.projects.pop(); return next; }
     const education = [...next.education].reverse().find(item => item.details.length);
     if (education) { education.details.pop(); return next; }
-    const certification = [...next.certifications].reverse().find(item => item.description);
-    if (certification) { certification.description = ""; return next; }
-    next.certifications.pop();
-    return next;
   }
   // Remove lower-ranked redundant bullets first without reserving a fixed quota.
   for (const exp of [...next.experience].reverse()) {

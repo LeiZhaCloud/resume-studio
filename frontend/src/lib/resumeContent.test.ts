@@ -83,3 +83,17 @@ it("formats partial dates without inventing values and excludes contact/date fie
   expect(RESUME_CONTENT_SCHEMA.properties).not.toHaveProperty("education");
   expect(RESUME_CONTENT_SCHEMA.properties).not.toHaveProperty("header");
 });
+
+it("retains every profile credential even when AI selects none, and sorts AI-reordered experience by dates", () => {
+  const input = { ...profile, certifications: [
+    { name: "Azure Expert", url: "https://example.com/azure", description: "Private renewal note" },
+    { name: "CKA", url: "", description: "Private source note" },
+  ] };
+  const generated = { ...content, experience: [...content.experience].reverse(), certifications: [] };
+  const resume = assembleResume(JSON.stringify(generated), input);
+  expect(resume.experience[0].dates).toContain("Present");
+  expect(resume.certifications).toEqual([
+    { name: "Azure Expert", url: "https://example.com/azure", description: "" },
+    { name: "CKA", url: "", description: "" },
+  ]);
+});
