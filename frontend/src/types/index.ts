@@ -1,7 +1,7 @@
 import type { ReasoningEffort } from "../lib/aiModels";
 export type CompanyStatus = "Not Applied" | "Applied";
 export type ApplicationStage = "Applied" | "OA" | "Interview" | "Rejected" | "Offer";
-export type AiProvider = "openai" | "gemini" | "glm";
+export type AiProvider = "openai" | "gemini" | "glm" | "deepseek";
 
 export interface CompanyCatalogItem {
   id: number;
@@ -26,7 +26,19 @@ export interface Company extends CompanyCatalogItem {
   application_count: number;
 }
 
+export interface CompanyInput {
+  name: string;
+  category?: string;
+  main_locations?: string;
+  link?: string;
+  notes?: string;
+  job_title?: string;
+  job_description?: string;
+}
+
 export interface CompanyUpdate {
+  name?: string;
+  category?: string;
   is_favourite?: boolean;
   notes?: string;
   link?: string;

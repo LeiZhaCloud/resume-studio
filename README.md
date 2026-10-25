@@ -1,170 +1,47 @@
-# InternRadar
+# Resume Studio
 
-InternRadar is a fully client-side GitHub Pages app for SWE/SDE internship tracking and tailored resume generation.
+A personal job workspace adapted from [Samecho/job-board](https://github.com/Samecho/job-board). The original resume generation, browser LaTeX/PDF rendering, profile editor and version history are retained. This copy starts with **zero companies** and has no preset catalog, rankings or internship restrictions.
 
-It keeps the curated company catalog, application tracking, notes, AI settings, resume profile, applications, resume versions, PDF/DOCX files, and backups in each user's browser storage. The deployed app does not require a backend, Python, SQLite, `start.bat`, or `stop.bat`.
+## 使用方法
 
-There is no login, Jobs tab, Sources tab, crawler, match score, priority/pin system, add company flow, reset data flow, or backend deployment feature.
+1. 打开 **Resume**，填写你的 Resume profile（教育、工作、项目、技能等真实经历）。资料自动保存在当前浏览器。
+2. 在 AI settings 选择服务商和模型，填写你自己的 API key，点击 Save。生成会调用所选服务商并可能产生费用。
+3. 打开 **Overview → Add company & JD**，输入任意公司名称，可同时填写岗位、完整 JD、链接、地点和备注。
+4. 点击 **Save & open Resume**，保存或编辑岗位。每家公司可以添加多个岗位及各自的 JD。
+5. 选择岗位，点击 **Generate for selected**。生成的简历保留版本历史，可以预览和下载 PDF / TeX，也可以手动修改或 AI refine。
+6. 公司卡片的 Edit 或表格中的备注可编辑公司；Delete company 会删除这家公司的岗位和简历，操作前会确认。
 
-## Features
+## Data and backups
 
-- Static React/Vite app deployable to GitHub Pages
-- IndexedDB browser-local structured data
-- Browser-local Blob storage for generated PDF and DOCX files
-- Curated SWE/SDE company catalog with tier order `S+`, `S`, `A+`, `A`, `B+`, `B`, `C`, `D`
-- Overview table and cards views
-- Company notes, locations, useful links, internship-friendly badge, and filters
-- Application hierarchy: Company -> Applications -> Resume Versions
-- Application stages: Applied, OA, Interview, Rejected, Offer
-- Detailed autosaved Resume Profile
-- AI Settings stored locally in the browser
-- Closed provider/model adapters for OpenAI, Gemini, and GLM
-- Deterministic browser rendering for PDF and DOCX from structured resume JSON
-- Export Everything / Import Backup ZIP workflow
+Companies, JDs, profile, API settings and generated files live in IndexedDB on the current browser/device. GitHub hosts application code only. There is no account login or automatic cross-device sync. Clearing site data removes local records. The app uses its own `personal-resume-studio` database and does not change the upstream app's data.
 
-## Shared Resumes and Refinement
+Use **Resume → Export Everything** regularly. A ZIP contains your custom companies, applications, profile, resume versions, PDFs and TeX. API keys are excluded. **Import Backup** replaces local data after confirmation and accepts backups from this personal version. You must configure an API key separately on a new browser. Resume data and target JDs are sent to your chosen AI provider when generating/refining.
 
-Open a company's Resume dialog to manage its separate applications.
-Select applications using the checkboxes directly in the company application list, then Generate for selected.
-Applications, named resume groups, and assignment choices in this dialog belong only to the current company.
-One AI request considers all selected JDs and saves one PDF/TeX version shared by those applications.
-Each application keeps its own stage, JD, and notes; application counts do not count versions.
+## Develop and check
 
-Application rows show the resume name and version currently assigned to them.
-Saved resumes are grouped by an editable name and show which applications use each version.
-Select one or more applications, then use a version's Use for selected button to assign it to all of them.
-Use Unassign resume in the application editor to remove its assignment.
-Favourite companies using the star beside their name in Overview's table or cards.
-The Favourites only filter shows favourite companies, independently of their applications.
-Company favourites are saved in IndexedDB and backups; positions do not have favourite controls.
-In version history, Edit / AI refine opens the structured JSON editor. Save manual edit recompiles locally without AI.
-Alternatively, enter a refinement instruction and use AI refine for one request with the existing content.
-Both save a new version and assign it to the current application only; other applications keep their assignments.
-Overlong refinements are rejected instead of silently pruning unrelated content. The original remains available.
-Deleting a shared version clears all its assignments, not applications. Deleting an application retains saved versions.
-Backup ZIPs preserve sharing, assignments, and refinement lineage. Existing single-application versions remain compatible.
-
-## Run Locally
+Requires Node.js 22 or newer.
 
 ```powershell
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-Open `http://localhost:5173`.
-
-## Build
+Open the local URL shown by Vite. For validation:
 
 ```powershell
-cd frontend
+npm test
 npm run build
-```
-
-Preview the production build:
-
-```powershell
-cd frontend
-npm run preview
 ```
 
 ## GitHub Pages
 
-The app is configured for static hosting with `base: "./"` in Vite. Deployment is handled by `.github/workflows/pages.yml`.
+`.github/workflows/pages.yml` tests and builds the frontend, then deploys `frontend/dist` to GitHub Pages after pushes to `main`. In repository Settings → Pages, select **GitHub Actions** as the source. Vite uses relative asset paths, including the local WebAssembly LaTeX compiler, so it supports repository subpaths.
 
-The workflow:
+The published code and page contain no personal resume or API key. User-entered records remain in each visitor's browser. This project preserves upstream Git history and attribution; its legacy backend, bundled company catalog and old catalog-specific scripts have been removed.
 
-1. Installs frontend dependencies with `npm ci`
-2. Builds the static app
-3. Uploads `frontend/dist`
-4. Deploys to GitHub Pages
+## DeepSeek
 
-## Local Data
+New workspaces default to **DeepSeek 4.1 Flash 1017**. The official API model ID is `deepseek-flash`, currently serving DeepSeek-V4.1-Flash-1017, as documented in [DeepSeek Models & Pricing](https://api-docs.deepseek.com/quick_start/pricing/) (checked 2026-10-25). This alias follows future provider updates; it does not pin a dated checkpoint.
 
-All personal data is stored in the browser on the current device/profile:
-
-- Company notes, links, and locations
-- Resume profile
-- AI provider settings and API key
-- Applications and stages
-- Resume versions
-- Generated PDF/DOCX files
-
-API keys are not stored in GitHub, Vite environment variables, or normal backups.
-
-## Resume Workflow
-
-1. Open **Overview**.
-2. Choose **Resume** for a company.
-3. Review the company's official openings and shortlist relevant technical internships before generating.
-4. Save each suitable role as its own Application, with its job title, full JD, stage, and notes. Keep unrelated roles such as product management out of the shared-resume selection.
-5. Configure AI Settings in the **Resume** tab.
-6. Check all shortlisted applications in this company's modal and choose **Generate for N selected**.
-7. One AI call creates one focused company resume from the selected JDs and assigns the same version to every selected application. The prompt prioritizes their shared technical direction rather than combining every keyword.
-8. Every generation creates a new resume version automatically. Use **Use for selected** to assign an existing version to additional suitable applications without regenerating.
-9. Preview the actual PDF, download PDF or `.tex`, or delete individual versions. Use the same company PDF when applying to the selected roles.
-
-A company is considered Applied when it has at least one Application. Overview application counts count Applications, not resume versions.
-
-## AI Settings
-
-### Certifications
-
-In **Resume -> Resume Profile**, use **Add certification** before Technical Skills.
-Each entry has a certificate name, an optional verification URL, and an optional brief description.
-Changes autosave with the rest of the profile and are included in browser-local backups.
-
-Generation selects JD-relevant certificates and writes only a short description for each.
-The script preserves the entered credential name and verification link; AI cannot invent credentials or links.
-In PDF and TeX exports, the name is a clickable hyperlink, not a displayed raw URL.
-Each certificate's title is on its own line, followed by its brief description on the next line. An empty description adds no blank description line.
-Use a complete `https://` or `http://` verification link; without a link, the name appears as plain text.
-The optional Certifications section follows Projects and precedes Technical Skills, and is omitted when empty.
-AI budgets the whole page together, compressing weaker material before sacrificing strong engineering evidence.
-Local overflow handling can shorten descriptions or omit lower-value certificates to preserve the one-page format.
-Fonts, margins, the browser LaTeX compiler, and the rest of the template remain unchanged.
-Existing profiles and saved resume versions without certifications remain compatible; old PDFs are not rewritten.
-Previously generated inline certificate layouts remain in their saved PDFs; a manual edit/recompile or new generation uses the updated two-line layout.
-
-### Provider Settings
-
-Resume generation uses a content-only AI response: selected role/subproject IDs, generated bullets/highlights, project technologies, and technical skills. Browser scripts assemble name/contact links, education, employer/organization, actual job title, location, dates, and standalone project names directly from the profile snapshot. Current roles use Present; other dates retain the entered text. Unknown, duplicate, and cross-role references are rejected. Explicitly omitted subproject headings are enforced locally. Existing saved versions retain their original snapshots.
-
-Open **Resume** to choose your provider, model, reasoning effort, and browser-local API key.
-
-- OpenAI offers GPT-5.6 Luna, Terra, Sol, and GPT-6 Astra with supported reasoning levels. Your selected model is always used.
-- Dropdown estimates update locally with the current profile, prompt/schema overhead, and an assumed 700-word English JD. Output/reasoning usage is a scenario estimate, not a prediction or limit. No token-count API is called.
-- Generate sends one AI generation request, with no dollar budget checks, pricing-expiry blocks, or application-imposed output cap. Higher reasoning can take longer and cost more. There are no automatic paid retries or AI expansion calls; PDF fitting remains local.
-- Completion and version history show estimated USD cost from reported OpenAI usage. Missing usage or unsupported provider pricing is shown as unavailable, never zero. Provider billing, cache discounts, and taxes can differ.
-- Gemini and GLM generation are available again through their existing official adapters; cost estimates are currently available for OpenAI only.
-- API keys stay browser-local and are excluded from backups.
-
-Rates in `frontend/src/lib/aiModels.ts` were checked 2026-09-06 and should be maintained against [official pricing](https://developers.openai.com/api/docs/pricing).
-
-## Catalog Audit
-
-The static catalog contains the September 2026 resume-signal audit. Tiers measure technical reputation and resume recognition; internship availability is tracked separately by the Intern badge. The tier order `S+`, `S`, `A+`, `A`, `B+`, `B`, `C`, `D`.
-
-To reproduce the audit transform:
-
-```powershell
-cd frontend
-npm run catalog:audit
-```
-
-The audit consolidates aliases while preserving local company notes, applications, and saved resume references through a browser IndexedDB migration.
-## Backup / Restore
-
-Use **Export Everything** in the Resume tab to download:
-
-```text
-InternRadar-backup-YYYY-MM-DD.zip
-```
-
-The backup contains `data.json` plus generated resume PDFs and DOCX files under `resumes/`. API keys are excluded by default.
-
-Use **Import Backup** to restore browser-local app data and files.
-
-## Legacy Backend
-
-The old FastAPI/SQLite backend remains in the repository only as legacy source. It is not required for normal app usage or GitHub Pages deployment.
+Generation, AI refinement and Test Connection use `https://api.deepseek.com/chat/completions`, Bearer authentication and JSON output. Test Connection makes a small generation request and may incur usage. Empty, truncated or rejected responses are reported without automatic paid retries. DeepSeek cost estimates are not currently calculated. Existing saved provider selections are preserved. Switching providers clears the unsaved API key field; enter the selected provider's key and Save.

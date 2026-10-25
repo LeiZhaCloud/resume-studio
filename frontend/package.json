@@ -1,15 +1,13 @@
 {
-  "name": "internradar-frontend",
+  "name": "personal-resume-studio",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && vite build",
-    "catalog:audit": "node scripts/audit-catalog.mjs",
     "preview": "vite preview",
-    "test": "vitest run",
-    "test:browser": "node scripts/verify-resume-browser.mjs"
+    "test": "vitest run"
   },
   "dependencies": {
     "@typeward/texlive-wasm": "0.2.4-alpha",

@@ -1,1 +1,0 @@
-"""InternRadar backend package."""

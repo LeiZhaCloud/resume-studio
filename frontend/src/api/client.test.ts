@@ -19,7 +19,7 @@ import { api } from "./client";
 
 function deleteDatabase(): Promise<void> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.deleteDatabase("internradar-browser");
+    const request = indexedDB.deleteDatabase("personal-resume-studio");
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
     request.onblocked = () => reject(new Error("IndexedDB deletion was blocked"));
@@ -64,7 +64,7 @@ describe("resume version persistence", () => {
     await api.updateProfile(profile);
     await api.saveAiSettings({ provider: "openai", model: "gpt-5.6-luna", api_key: "test-local" });
     const a = await api.createApplication({ company_id: 1, job_title: "Backend", job_description: "Go services", notes: "first" });
-    const b = await api.createApplication({ company_id: 2, job_title: "Infra", job_description: "Kubernetes systems", notes: "second" });
+    const b = await api.createApplication({ company_id: 1, job_title: "Infra", job_description: "Kubernetes systems", notes: "second" });
     await api.updateApplication(b.id, { application_stage: "Interview" });
     const v1 = await api.generateResumeVersion(a.id, "", [a.id, b.id, b.id]);
     expect(fetch).toHaveBeenCalledTimes(1);
@@ -72,23 +72,23 @@ describe("resume version persistence", () => {
     expect(await api.resumes()).toHaveLength(1);
     expect((await api.resumeVersions(b.id))[0].id).toBe(v1.id);
     expect((await api.applications()).every(app => app.assigned_resume_version_id === v1.id)).toBe(true);
-    expect((await api.companies()).find(item => item.id === 2)?.resume_count).toBe(1);
+    expect((await api.companies()).find(item => item.id === 1)?.resume_count).toBe(1);
     const edited = structuredClone(v1.structured_resume);
     edited.header.location = "Vancouver";
     const v2 = await api.refineResumeVersion(v1.id, a.id, JSON.stringify(edited));
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(v2.parent_version_id).toBe(v1.id);
     expect((await api.getResumeVersion(v1.id))?.structured_resume.header.location).not.toBe("Vancouver");
-    expect((await api.applications(2))[0].assigned_resume_version_id).toBe(v1.id);
+    expect((await api.applications(1)).find(app => app.id === b.id)?.assigned_resume_version_id).toBe(v1.id);
     await api.assignResume(b.id, v2.id);
     const backup = await api.exportBackup();
     await api.importBackup(new File([backup], "backup.zip"));
-    expect((await api.applications(2))[0]).toMatchObject({ assigned_resume_version_id: v2.id, notes: "second", application_stage: "Interview" });
+    expect((await api.applications(1)).find(app => app.id === b.id)).toMatchObject({ assigned_resume_version_id: v2.id, notes: "second", application_stage: "Interview" });
     expect((await api.analytics()).total_applications).toBe(2);
     await api.deleteApplication(a.id);
     expect(await api.getResumeVersion(v2.id)).toBeDefined();
     await api.deleteResumeVersion(v2.id);
-    expect((await api.applications(2))[0].assigned_resume_version_id).toBeNull();
+    expect((await api.applications(1)).find(app => app.id === b.id)?.assigned_resume_version_id).toBeNull();
     expect(await api.getResumeVersion(v1.id)).toBeDefined();
   });
 
@@ -112,6 +112,8 @@ describe("resume version persistence", () => {
   });
   beforeEach(async () => {
     await deleteDatabase();
+    await api.createCompany({ name: "Custom Systems" });
+    await api.createCompany({ name: "Custom Labs" });
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify( { status: "completed", output_text: JSON.stringify(generatedContent), usage: { input_tokens: 3000, output_tokens: 2300, output_tokens_details: { reasoning_tokens: 200 } } }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -121,6 +123,31 @@ describe("resume version persistence", () => {
   afterEach(async () => {
     vi.unstubAllGlobals();
     await deleteDatabase();
+  });
+
+  it("defaults to DeepSeek and uses its official API for generation, refinement and connection testing", async () => {
+    expect(await api.aiSettings()).toMatchObject({ provider: "deepseek", model: "deepseek-flash", api_key: "" });
+    await api.updateProfile(profile);
+    const settings = await api.saveAiSettings({ provider: "deepseek", model: "deepseek-flash", api_key: "deepseek-test-key" });
+    const app = await api.createApplication({ company_id: 1, job_title: "Engineer", job_description: "Go services", notes: "" });
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(generatedContent) } }] })));
+    const version = await api.generateResumeVersion(app.id, "");
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe("https://api.deepseek.com/chat/completions");
+    const request = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body));
+    expect(request).toMatchObject({ model: "deepseek-flash", response_format: { type: "json_object" }, stream: false });
+    expect(request.messages[0].content).toContain("JSON");
+    expect(request.messages[1].content).toContain("Custom Systems");
+    expect(vi.mocked(fetch).mock.calls[0][1]?.headers).toMatchObject({ Authorization: "Bearer deepseek-test-key" });
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(version.structured_resume) } }] })));
+    const refined = await api.refineResumeVersion(version.id, app.id, JSON.stringify(version.structured_resume), "Keep factual details");
+    expect(refined.parent_version_id).toBe(version.id);
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: '{"ok":true}' } }] })));
+    expect(await api.testAiConnection(settings)).toBe(true);
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ finish_reason: "length", message: { content: "{}" } }] })));
+    await expect(api.generateResumeVersion(app.id, "")).rejects.toThrow("length");
+    expect(fetch).toHaveBeenCalledTimes(4);
+    expect(await api.resumes()).toHaveLength(2);
   });
 
   it("creates immutable v1/v2 records, exports PDF plus TeX, and deletes only one version", async () => {
@@ -235,3 +262,4 @@ describe("resume version persistence", () => {
     expect(await api.resumeVersions(app.id)).toHaveLength(0);
   });
 });
+

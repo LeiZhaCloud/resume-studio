@@ -2,32 +2,23 @@ import { OPENAI_MODELS, estimateInputTokens, modelInfo, defaultEffort, PRICE_CHE
 import { masterSkills } from "../lib/technicalSkills";
 import { assembleResume, resumeContentSource, resumeContentSchema } from "../lib/resumeContent";
 import { profileDetails } from "../lib/profileDetails";
-import { COMPANY_CATALOG } from "../data/catalog";
+
 import resumeSkill from "../skills/resume-generation.md?raw";
 import type {
   AiSettings, AiUsage, Analytics, Application, ApplicationStage, Company, CompanyState,
-  CompanyUpdate, FeatureStatus, GeneratedResume, ResumeProfile, ResumeProfileUpdate,
+  CompanyCatalogItem, CompanyInput, CompanyUpdate, FeatureStatus, GeneratedResume, ResumeProfile, ResumeProfileUpdate,
   ResumeVersion, ResumeVersionRead, StructuredResume,
 } from "../types";
 import { makeZip, readStoreZip } from "../lib/resumeFiles";
 import { compileResumeLatex, renderResumeLatex } from "../lib/resumeLatex";
 import { normalizeStoredStructuredResume, trimLowestPriorityContent, parseStructuredResumeJson, RESUME_JSON_SCHEMA } from "../lib/resumeSchema";
 
-const DB_NAME = "internradar-browser";
+const DB_NAME = "personal-resume-studio";
 const DB_VERSION = 3;
-const COMPANY_ID_ALIASES: Record<number, number> = {
-  25: 26,
-  118: 110,
-  195: 220,
-  294: 293,
-  307: 293,
-  330: 36,
-  335: 159,
-  512: 549,
-};
 const stages: ApplicationStage[] = ["Applied", "OA", "Interview", "Rejected", "Offer"];
 const tierOrder = ["S+", "S", "A+", "A", "B+", "B", "C", "D"];
 const providerModels = {
+  deepseek: ["deepseek-flash"],
   openai: OPENAI_MODELS.map(model => model.id),
   gemini: ["gemini-3.8-flash"],
   glm: ["glm-5.3-flash"],
@@ -41,7 +32,7 @@ function slug(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g,
 
 
 function canonicalCompanyId(companyId: number) {
-  return COMPANY_ID_ALIASES[companyId] || companyId;
+  return companyId;
 }
 
 function mergeCompanyStates(current: CompanyState | undefined, incoming: CompanyState, companyId: number): CompanyState {
@@ -94,6 +85,7 @@ function openDb(): Promise<IDBDatabase> {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = event => {
       const db = request.result;
+      if (!db.objectStoreNames.contains("companies")) db.createObjectStore("companies", { keyPath: "id", autoIncrement: true });
       if (!db.objectStoreNames.contains("company_states")) db.createObjectStore("company_states", { keyPath: "company_id" });
       if (!db.objectStoreNames.contains("resume_profile")) db.createObjectStore("resume_profile", { keyPath: "id" });
       if (!db.objectStoreNames.contains("ai_settings")) db.createObjectStore("ai_settings", { keyPath: "id" });
@@ -259,20 +251,20 @@ function migrateProfileData(raw: Record<string, unknown>): ResumeProfile {
 }
 
 function defaultAiSettings(): AiSettings {
-  return { provider: "openai", api_key: "", model: "gpt-5.6-luna", reasoning_effort: "low", updated_at: now() };
+  return { provider: "deepseek", api_key: "", model: "deepseek-flash", updated_at: now() };
 }
 
 function normalizeAiSettings(value?: Partial<AiSettings> & { provider?: string }): AiSettings {
   const fallback = defaultAiSettings();
   const legacyProvider = value?.provider as string | undefined;
-  const provider = legacyProvider === "gemini" ? "gemini" : legacyProvider === "glm" || legacyProvider === "glm-compatible" ? "glm" : "openai";
+  const provider = legacyProvider === "deepseek" || !legacyProvider ? "deepseek" : legacyProvider === "gemini" ? "gemini" : legacyProvider === "glm" || legacyProvider === "glm-compatible" ? "glm" : "openai";
   const allowedModels = providerModels[provider] as readonly string[];
   const selectedModel = typeof value?.model === "string" && value.model ? value.model : allowedModels[0];
   return {
     provider,
     api_key: typeof value?.api_key === "string" ? value.api_key : "",
     model: selectedModel,
-    reasoning_effort: value?.reasoning_effort && modelInfo(selectedModel)?.efforts.includes(value.reasoning_effort) ? value.reasoning_effort : defaultEffort(selectedModel),
+    reasoning_effort: provider === "openai" ? (value?.reasoning_effort && modelInfo(selectedModel)?.efforts.includes(value.reasoning_effort) ? value.reasoning_effort : defaultEffort(selectedModel)) : undefined,
     updated_at: typeof value?.updated_at === "string" ? value.updated_at : fallback.updated_at,
   };
 }
@@ -282,7 +274,7 @@ function validatedAiSettings(value: Omit<AiSettings, "updated_at">): Omit<AiSett
   if (!allowedModels.includes(value.model)) throw new Error("Select a model from the provider list");
   const effort = value.reasoning_effort ?? defaultEffort(value.model);
   if (value.provider === "openai" && !modelInfo(value.model)?.efforts.includes(effort)) throw new Error("Unsupported reasoning strength for this model");
-  return { provider: value.provider, model: value.model, api_key: value.api_key, reasoning_effort: effort };
+  return { provider: value.provider, model: value.model, api_key: value.api_key, reasoning_effort: value.provider === "openai" ? effort : undefined };
 }
 async function profile() {
   const existing = await get<ResumeProfile>("resume_profile", 1);
@@ -326,13 +318,13 @@ async function versions(applicationId?: number) {
   return items.filter(item => !applicationId || (item.application_ids ?? [item.application_id]).includes(applicationId)).sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
-function companyName(companyId: number) {
-  return COMPANY_CATALOG.find(company => company.id === companyId)?.name || "Company";
+async function companyName(companyId: number) {
+  return (await get<CompanyCatalogItem>("companies", companyId))?.name || "Company";
 }
 
 async function companies(): Promise<Company[]> {
-  const [states, apps, resumeVersions] = await Promise.all([
-    all<CompanyState>("company_states"), applications(), versions(),
+  const [states, apps, resumeVersions, catalog] = await Promise.all([
+    all<CompanyState>("company_states"), applications(), versions(), all<CompanyCatalogItem>("companies"),
   ]);
   const stateMap = new Map(states.map(state => [state.company_id, state]));
   const appCounts = new Map<number, number>();
@@ -342,7 +334,7 @@ async function companies(): Promise<Company[]> {
     const related = apps.filter(app => (version.application_ids ?? [version.application_id]).includes(app.id));
     for (const companyId of new Set([version.company_id, ...related.map(app => app.company_id)])) resumeCounts.set(companyId, (resumeCounts.get(companyId) || 0) + 1);
   });
-  return COMPANY_CATALOG.map(company => {
+  return catalog.map(company => {
     const state = stateMap.get(company.id);
     const application_count = appCounts.get(company.id) || 0;
     return {
@@ -367,6 +359,7 @@ async function company(id: number) {
 
 async function updateCompany(id: number, data: CompanyUpdate) {
   const current = await company(id);
+  await put("companies", { ...current, name: data.name?.trim() || current.name, category: data.category ?? current.category });
   await put<CompanyState>("company_states", {
     company_id: id,
     is_favourite: data.is_favourite ?? current.is_favourite ?? false,
@@ -377,6 +370,41 @@ async function updateCompany(id: number, data: CompanyUpdate) {
     updated_at: now(),
   });
   return company(id);
+}
+
+function companyRecord(data: CompanyInput): Omit<CompanyCatalogItem, "id"> {
+  const name = data.name.trim();
+  if (!name) throw new Error("Enter a company name.");
+  const link = data.link?.trim() || "";
+  if (link && !/^https?:\/\//i.test(link)) throw new Error("Use an http:// or https:// link.");
+  return { name, display_name: name, domain: "", logo_url: null, career_url: link, link,
+    tier: "C", category: data.category?.trim() || "Other", main_locations: data.main_locations?.trim() || "", intern_friendly: false };
+}
+
+async function createCompany(data: CompanyInput) {
+  const record = companyRecord(data);
+  const created = await tx(["companies", "company_states", "applications"], "readwrite", async (_, transaction) => {
+    const id = Number(await req(transaction.objectStore("companies").add(record)));
+    await req(transaction.objectStore("company_states").put({ company_id: id, notes: data.notes || "", link: record.link, main_locations: record.main_locations, updated_at: now() }));
+    if (data.job_description?.trim() || data.job_title?.trim()) {
+      await req(transaction.objectStore("applications").add({ company_id: id, job_title: data.job_title?.trim() || "", job_description: data.job_description?.trim() || "", notes: "", application_stage: "Applied", created_at: now(), updated_at: now() }));
+    }
+    return id;
+  });
+  return company(created);
+}
+
+async function deleteCompany(id: number) {
+  await tx(["companies", "company_states", "applications", "resume_versions"], "readwrite", async (_, transaction) => {
+    for (const storeName of ["applications", "resume_versions"]) {
+      const store = transaction.objectStore(storeName);
+      for (const item of await req<Array<{ id: number; company_id: number }>>(store.getAll())) {
+        if (item.company_id === id) await req(store.delete(item.id));
+      }
+    }
+    await req(transaction.objectStore("companies").delete(id));
+    await req(transaction.objectStore("company_states").delete(id));
+  });
 }
 
 async function matchCompanyStage(transaction: IDBTransaction, companyId: number) {
@@ -431,14 +459,14 @@ async function analytics(): Promise<Analytics> {
     applied_tier_counts,
     saved_resume_count: resumeVersions.length,
     companies_with_resumes: companiesWithResume.size,
-    recent_resumes: resumeVersions.slice(0, 6).map(version => ({
-      id: version.id, company_id: version.company_id, company_name: companyName(version.company_id),
+    recent_resumes: await Promise.all(resumeVersions.slice(0, 6).map(async version => ({
+      id: version.id, company_id: version.company_id, company_name: await companyName(version.company_id),
       resume_name: `Version ${version.version_number}`, job_title: apps.find(app => app.id === version.application_id)?.job_title || "", created_at: version.created_at,
-    })),
+    }))),
   };
 }
 
-async function responseError(response: Response) {
+async function responseError(response: Response): Promise<never> {
   const detail = await response.text();
   throw new Error(`AI request failed (${response.status})${detail ? `: ${detail.slice(0, 240)}` : ""}`);
 }
@@ -481,6 +509,23 @@ async function callGlm(settings: AiSettings, messages: Array<{ role: "system" | 
 }
 
 
+// Official API alias currently serves DeepSeek-V4.1-Flash-1017.
+// https://api-docs.deepseek.com/quick_start/pricing (checked 2026-10-25)
+async function callDeepSeek(settings: AiSettings, messages: Array<{ role: "system" | "user"; content: string }>) {
+  const response = await fetch("https://api.deepseek.com/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${settings.api_key}` },
+    body: JSON.stringify({ model: settings.model, messages, stream: false, response_format: { type: "json_object" } }),
+  });
+  if (!response.ok) return responseError(response);
+  const body = await response.json();
+  const choice = body.choices?.[0];
+  if (choice?.finish_reason !== "stop") throw new Error(`DeepSeek did not complete (${choice?.finish_reason || "missing completion"}). The request may have been charged; no automatic retry was made.`);
+  const content = choice.message?.content;
+  if (typeof content !== "string" || !content.trim()) throw new Error("DeepSeek returned empty content. No automatic retry was made.");
+  return content;
+}
+
 async function callResumeAi(settings: AiSettings, userPrompt: string, profileData: ResumeProfileUpdate, refine = false): Promise<{ resume: StructuredResume; usage?: AiUsage }> {
   const schema = refine ? RESUME_JSON_SCHEMA : resumeContentSchema(profileData);
   const instructions = refine ? "Refine the supplied existing resume only according to the user instruction. Preserve unrelated content and factual details verbatim as much as possible. Do not regenerate from the master profile. Do not invent metrics, employers, dates, responsibilities or outcomes. Preserve certification names and verification links; do not add or alter credentials unless the user provides specific certification information in the instruction. Keep certificate descriptions very brief. Keep one page and the JSON schema. Highlights must be short exact phrases from the bullet, at most two per bullet. Return only the complete final structured JSON; reason internally in this single call." : resumeSkill;
@@ -488,7 +533,7 @@ async function callResumeAi(settings: AiSettings, userPrompt: string, profileDat
   if (settings.provider !== "openai") {
     const raw = settings.provider === "gemini"
       ? await callGemini(settings, `${instructions}\n\n${userPrompt}`, schema)
-      : await callGlm(settings, [{ role: "system", content: `${instructions}\n\nOutput JSON Schema:\n${JSON.stringify(schema)}` }, { role: "user", content: userPrompt }]);
+      : await (settings.provider === "deepseek" ? callDeepSeek : callGlm)(settings, [{ role: "system", content: `${instructions}\n\nOutput JSON Schema:\n${JSON.stringify(schema)}` }, { role: "user", content: userPrompt }]);
     return { resume: parse(raw) };
   }
   const effort = settings.reasoning_effort ?? defaultEffort(settings.model);
@@ -525,9 +570,9 @@ export function estimateResumeInput(profileData: ResumeProfileUpdate) {
   return estimateInputTokens(resumeSkill + JSON.stringify(resumeContentSchema(profileData)) + JSON.stringify(resumeContentSource(profileData), null, 2));
 }
 
-function generationPrompt(profileData: ResumeProfile, apps: Application[], extraInstructions: string) {
+async function generationPrompt(profileData: ResumeProfile, apps: Application[], extraInstructions: string) {
   const targets = apps.map(app => ({ title: app.job_title, jd: app.job_description }));
-  return `Create ONE focused, one-page company resume suitable for ALL the selected technical applications below. Find their shared engineering direction and prioritize the candidate's strongest relevant evidence; do not concatenate role-specific resumes or cover every incidental keyword. The first listed application has no special priority. The fixed renderer owns all layout.\n\nCompany: ${companyName(apps[0].company_id)}\n\nMaster resume profile (factual basis for experience; skill inventory is non-exhaustive, and Technical Skills may be supplemented from the JDs):\n${JSON.stringify(resumeContentSource(profileData), null, 2)}\n\nSelected applications and job descriptions:\n${JSON.stringify(targets, null, 2)}\n\nExtra user instructions:\n${extraInstructions || "None"}`;
+  return `Create ONE focused, one-page company resume suitable for ALL the selected technical applications below. Find their shared engineering direction and prioritize the candidate's strongest relevant evidence; do not concatenate role-specific resumes or cover every incidental keyword. The first listed application has no special priority. The fixed renderer owns all layout.\n\nCompany: ${await companyName(apps[0].company_id)}\n\nMaster resume profile (factual basis for experience; skill inventory is non-exhaustive, and Technical Skills may be supplemented from the JDs):\n${JSON.stringify(resumeContentSource(profileData), null, 2)}\n\nSelected applications and job descriptions:\n${JSON.stringify(targets, null, 2)}\n\nExtra user instructions:\n${extraInstructions || "None"}`;
 }
 
 async function renderOnePageResume(initial: StructuredResume) {
@@ -636,7 +681,7 @@ async function generateResumeVersion(applicationId: number, extraInstructions: s
   const targets = await Promise.all([...new Set([applicationId, ...applicationIds])].map(id => get<Application>("applications", id)));
   if (targets.some(target => !target || !target.job_description.trim())) throw new Error("Every selected application needs a job description.");
   if (targets.some(target => target!.company_id !== app.company_id)) throw new Error("Select applications from this company only.");
-  const generated = await callResumeAi(settings, generationPrompt(profileData, targets.map(target => target!), extraInstructions), profileData);
+  const generated = await callResumeAi(settings, await generationPrompt(profileData, targets.map(target => target!), extraInstructions), profileData);
   let rendered;
   try { rendered = await renderOnePageResume(generated.resume); }
   catch (error) {
@@ -645,7 +690,7 @@ async function generateResumeVersion(applicationId: number, extraInstructions: s
   }
   return saveAssignedVersion({
     application_ids: targets.map(target => target!.id),
-    resume_title: resumeTitle.trim() || `${companyName(app.company_id)} Resume`,
+    resume_title: resumeTitle.trim() || `${await companyName(app.company_id)} Resume`,
     application_id: applicationId,
     company_id: app.company_id,
     version_number: 0,
@@ -659,7 +704,7 @@ async function generateResumeVersion(applicationId: number, extraInstructions: s
     created_at: now(),
   } as ResumeVersion);
 }
-function versionRead(version: ResumeVersion, app?: Application): ResumeVersionRead {
+async function versionRead(version: ResumeVersion, app?: Application): Promise<ResumeVersionRead> {
   return {
     resume_group_id: version.resume_group_id ?? `company:${version.company_id}/application:${version.application_id}`,
     resume_title: version.resume_title || app?.job_title || "Resume",
@@ -668,7 +713,7 @@ function versionRead(version: ResumeVersion, app?: Application): ResumeVersionRe
     id: version.id,
     application_id: version.application_id,
     company_id: version.company_id,
-    company_name: companyName(version.company_id),
+    company_name: await companyName(version.company_id),
     job_title: app?.job_title || "",
     version_number: version.version_number,
     structured_resume: version.structured_resume,
@@ -682,17 +727,17 @@ function versionRead(version: ResumeVersion, app?: Application): ResumeVersionRe
 
 async function resumeReads(): Promise<GeneratedResume[]> {
   const [resumeVersions, apps] = await Promise.all([versions(), applications()]);
-  return resumeVersions.map(version => {
+  return Promise.all(resumeVersions.map(async version => {
     const app = apps.find(item => item.id === version.application_id);
     return {
-      ...versionRead(version, app),
-      resume_name: `${companyName(version.company_id)} ${app?.job_title || "Resume"} v${version.version_number}`,
+      ...await versionRead(version, app),
+      resume_name: `${await companyName(version.company_id)} ${app?.job_title || "Resume"} v${version.version_number}`,
       jd_text: app?.job_description || "",
       generated_latex: version.tex_source,
       notes: app?.notes || "",
       updated_at: version.created_at,
     };
-  });
+  }));
 }
 
 async function exportBackup() {
@@ -700,15 +745,15 @@ async function exportBackup() {
     all<CompanyState>("company_states"), profile(), aiSettings(), applications(), versions(),
   ]);
   const files: Record<string, Blob | string> = {};
-  const metadata = resumeVersions.map(version => {
+  const metadata = await Promise.all(resumeVersions.map(async version => {
     const app = apps.find(item => item.id === version.application_id);
-    const path = `resumes/${slug(companyName(version.company_id))}/${slug(app?.job_title || "application")}/v${version.version_number}`;
+    const path = `resumes/${slug(await companyName(version.company_id))}/${slug(app?.job_title || "application")}/${version.id}-v${version.version_number}`;
     files[`${path}.pdf`] = version.pdf_file;
     files[`${path}.tex`] = version.tex_source;
     const { pdf_file: _pdf, docx_file: _legacyDocx, tex_source: _tex, ...rest } = version;
     return { ...rest, pdf_path: `${path}.pdf`, tex_path: `${path}.tex` };
-  });
-  files["data.json"] = JSON.stringify({ company_states: states, resume_profile: profileData, ai_settings: { ...settings, api_key: "" }, applications: apps, resume_versions: metadata }, null, 2);
+  }));
+  files["data.json"] = JSON.stringify({ format: "personal-resume-studio", companies: await all<CompanyCatalogItem>("companies"), company_states: states, resume_profile: profileData, ai_settings: { ...settings, api_key: "" }, applications: apps, resume_versions: metadata }, null, 2);
   return makeZip(files);
 }
 
@@ -717,6 +762,8 @@ async function importBackup(file: File) {
   const dataBlob = files["data.json"];
   if (!dataBlob) throw new Error("Backup is missing data.json");
   const data = JSON.parse(await dataBlob.text()) as {
+    format?: string;
+    companies?: CompanyCatalogItem[];
     company_states?: CompanyState[];
     resume_profile?: ResumeProfile;
     applications?: Application[];
@@ -729,6 +776,14 @@ async function importBackup(file: File) {
       tex_source?: string;
     }>;
   };
+  if (data.format !== "personal-resume-studio" || !Array.isArray(data.companies)) throw new Error("Use a Resume Studio backup containing your custom companies.");
+  const ids = new Set<number>();
+  for (const item of data.companies) {
+    if (!Number.isSafeInteger(item.id) || item.id <= 0 || ids.has(item.id)) throw new Error("Invalid or duplicate company ID in backup.");
+    companyRecord(item);
+    ids.add(item.id);
+  }
+  if ([...(data.applications || []), ...(data.resume_versions || [])].some(item => !ids.has(item.company_id))) throw new Error("Backup references a missing company.");
   const importedVersions = await Promise.all((data.resume_versions || []).map(async meta => {
     const { pdf_path: pdfPath, tex_path: texPath, docx_path: _legacyDocxPath, ...version } = meta;
     const pdfFile = pdfPath ? files[pdfPath] : undefined;
@@ -748,8 +803,9 @@ async function importBackup(file: File) {
     };
   }));
 
-  await tx(["company_states", "resume_profile", "applications", "resume_versions"], "readwrite", async (_, transaction) => {
-    for (const store of ["company_states", "resume_profile", "applications", "resume_versions"]) await req(transaction.objectStore(store).clear());
+  await tx(["companies", "company_states", "resume_profile", "applications", "resume_versions"], "readwrite", async (_, transaction) => {
+    for (const store of ["companies", "company_states", "resume_profile", "applications", "resume_versions"]) await req(transaction.objectStore(store).clear());
+    for (const item of data.companies!) await req(transaction.objectStore("companies").put({ ...companyRecord(item), id: item.id }));
     const importedStates = new Map<number, CompanyState>();
     for (const state of data.company_states || []) {
       const companyId = canonicalCompanyId(state.company_id);
@@ -767,6 +823,8 @@ export const api = {
   companies,
   company,
   updateCompany,
+  createCompany,
+  deleteCompany,
   analytics,
   profile,
   updateProfile: (data: ResumeProfileUpdate) => put("resume_profile", { id: 1, ...data, updated_at: now() }),
@@ -785,13 +843,14 @@ export const api = {
     const checked = normalizeAiSettings(settings);
     validatedAiSettings(checked);
     if (checked.provider === "gemini") { await callGemini(checked, 'Return JSON only: {"ok":true}'); return true; }
+    if (checked.provider === "deepseek") { const content = await callDeepSeek(checked, [{ role: "user", content: 'Return JSON only: {"ok":true}' }]); if (JSON.parse(content).ok !== true) throw new Error("Unexpected DeepSeek connection test response"); return true; }
     if (checked.provider === "glm") { await callGlm(checked, [{ role: "user", content: 'Return JSON only: {"ok":true}' }]); return true; }
     const response = await fetch(`https://api.openai.com/v1/models/${encodeURIComponent(checked.model)}`, { headers: { Authorization: `Bearer ${checked.api_key}` } });
     if (!response.ok) await responseError(response);    return true;
   },
   applications,
   markCompanyStage,
-  createApplication: (data: { company_id: number; job_title: string; job_description: string; notes: string }) => add<Omit<Application, "id">>("applications", { ...data, application_stage: "Applied", created_at: now(), updated_at: now() } as Application),
+  createApplication: async (data: { company_id: number; job_title: string; job_description: string; notes: string }) => { await company(data.company_id); return add<Omit<Application, "id">>("applications", { ...data, application_stage: "Applied", created_at: now(), updated_at: now() } as Application); },
   updateApplication: async (id: number, data: Partial<Application>) => {
     return tx(["applications", "company_states"], "readwrite", async (_, transaction) => {
       const store = transaction.objectStore("applications");
@@ -838,7 +897,7 @@ export const api = {
   generateResumeVersion,
   resumeVersions: async (applicationId: number) => {
     const [app, items] = await Promise.all([get<Application>("applications", applicationId), versions(applicationId)]);
-    return items.map(item => versionRead(item, app));
+    return Promise.all(items.map(item => versionRead(item, app)));
   },
   getResumeVersion: async (id: number) => { const item = await get<StoredResumeVersion>("resume_versions", id); return item ? hydrateResumeVersion(item) : undefined; },
   deleteResumeVersion,

@@ -1,14 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 
-const localLogoBase = `${import.meta.env.BASE_URL}logos/`;
-
-const localLogos: Record<string, string> = {
-  ByteDance: `${localLogoBase}bytedance.svg`,
-  "Five Rings": `${localLogoBase}five-rings.svg`,
-  "Radix Trading": `${localLogoBase}radix-trading.png`,
-  "Virtu Financial": `${localLogoBase}virtu-financial.svg`,
-};
-
 export function Logo({
   name,
   domain,
@@ -23,7 +14,6 @@ export function Logo({
   const sources = useMemo(() => {
     const normalizedDomain = domain?.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
     return Array.from(new Set([
-      localLogos[name] || "",
       normalizedDomain ? `https://${normalizedDomain}/favicon.ico` : "",
       normalizedDomain ? `https://www.google.com/s2/favicons?domain_url=https://${normalizedDomain}&sz=128` : "",
       normalizedDomain ? `https://icons.duckduckgo.com/ip3/${normalizedDomain}.ico` : "",
