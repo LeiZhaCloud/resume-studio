@@ -687,7 +687,12 @@ async function reformatResumeVersion(id: number, applicationId: number) {
   const app = await get<Application>("applications", applicationId);
   if (!app || app.company_id !== original.company_id) throw new Error("Select an application from this company.");
   const currentProfile = await profile();
-  const credentials = [...(original.structured_resume.certifications || [])];
+  const credentials: NonNullable<StructuredResume["certifications"]> = [];
+  for (const entry of original.structured_resume.certifications || []) {
+    const existing = credentials.findIndex(item => item.name.trim().toLowerCase() === entry.name.trim().toLowerCase());
+    if (existing < 0) credentials.push({ ...entry });
+    else credentials[existing] = { ...credentials[existing], url: entry.url.trim() || credentials[existing].url, description: entry.description || credentials[existing].description };
+  }
   for (const entry of currentProfile.certifications || []) {
     const existing = credentials.findIndex(item => item.name.trim().toLowerCase() === entry.name.trim().toLowerCase());
     if (existing >= 0) {

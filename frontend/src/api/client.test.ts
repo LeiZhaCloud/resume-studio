@@ -171,6 +171,11 @@ describe("resume version persistence", () => {
     const linked = await api.reformatResumeVersion(updated.id, app.id);
     expect(linked.structured_resume.certifications).toHaveLength(7);
     expect(linked.structured_resume.certifications?.every(entry => entry.url.startsWith("https://example.com/verify/"))).toBe(true);
+    const duplicated = { ...linked.structured_resume, certifications: [...linked.structured_resume.certifications!, ...linked.structured_resume.certifications!.map(entry => ({ ...entry, url: "" }))] };
+    const legacyDuplicate = await api.refineResumeVersion(linked.id, app.id, JSON.stringify(duplicated));
+    const repaired = await api.reformatResumeVersion(legacyDuplicate.id, app.id);
+    expect(repaired.structured_resume.certifications).toHaveLength(7);
+    expect(repaired.structured_resume.certifications?.every(entry => entry.url.startsWith("https://example.com/verify/"))).toBe(true);
     expect(fetch).toHaveBeenCalledTimes(1);
     const other = await api.createApplication({ company_id: 2, job_title: "Other", job_description: "Other JD", notes: "" });
     await expect(api.reformatResumeVersion(original.id, other.id)).rejects.toThrow("this company");
