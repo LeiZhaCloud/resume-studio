@@ -173,9 +173,9 @@ function technicalSkillsSection(resume: StructuredResume): string {
     }),
   })).filter(group => group.skills.length);
   const rows = groups.map(group => [
-    "\\noindent\\begin{minipage}[t]{0.225\\linewidth}\\small",
+    "\\noindent\\begin{minipage}[t]{0.225\\linewidth}\\small\\raggedright",
     `\\textbf{${escapeLatex(group.name)}}:`,
-    "\\end{minipage}\\hfill\\begin{minipage}[t]{0.75\\linewidth}\\small",
+    "\\end{minipage}\\hfill\\begin{minipage}[t]{0.75\\linewidth}\\small\\raggedright",
     group.skills.map(escapeLatex).join(", "),
     "\\end{minipage}\\par\\vspace{5pt}",
   ].join("\n"));
