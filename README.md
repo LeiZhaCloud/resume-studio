@@ -56,6 +56,8 @@ Existing PDFs remain immutable. Use **Update layout & certifications** in Resume
 
 ## Reference-inspired PDF styling
 
-The current template uses a left-aligned uppercase name, sans-serif body, pale-blue rules around centered uppercase section headings, a two-column skills grid, compact linked certification names, reverse chronological experience, and Education last. Long role headings wrap without colliding with dates. Export order is Technical Skills → Certifications → Experience → optional Projects → Education.
+The current template uses a left-aligned uppercase name, sans-serif body, pale-blue rules around centered uppercase section headings, a aligned category-and-technology rows, compact linked certification names, reverse chronological experience, and Education last. Long role headings wrap without colliding with dates. Export order is Technical Skills → Certifications → Experience → optional Projects → Education.
 
 The default generation/refinement budget is now up to two pages, appropriate to the supplied senior-career reference. All certificate names and URLs remain protected; optional credential descriptions are kept as metadata rather than taking a second printed line. Existing PDFs are preserved until **Update layout & certifications** creates a new local version. Verification URLs entered in the profile replace blank/outdated URLs for the same certificate without duplicating its row. Personal credential links remain browser-local and are never bundled with the public source.
+
+Skills now use a consistent left category column and right technology column with deduplicated entries. Certificate verification is indicated by a small vector chain-link symbol; both the title and symbol remain inside the original hyperlink.

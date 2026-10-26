@@ -163,12 +163,22 @@ function projectsSection(resume: StructuredResume): string {
 }
 
 function technicalSkillsSection(resume: StructuredResume): string {
-  const groups = skillCategories(resume.technicalSkills).filter(group => group.skills.length);
-  const block = (group: typeof groups[number]) => `\\textbf{${escapeLatex(group.name)}}\\par\\vspace{2pt}\n${group.skills.map(escapeLatex).join(", ")}\\par`;
-  const rows: string[] = [];
-  for (let i = 0; i < groups.length; i += 2) {
-    rows.push(`\\noindent\\begin{minipage}[t]{0.48\\linewidth}\\small\n${block(groups[i])}\n\\end{minipage}\\hfill\\begin{minipage}[t]{0.48\\linewidth}\\small\n${groups[i + 1] ? block(groups[i + 1]) : ""}\n\\end{minipage}\\par\\vspace{6pt}`);
-  }
+  const seen = new Set<string>();
+  const groups = skillCategories(resume.technicalSkills).map(group => ({
+    ...group,
+    skills: group.skills.filter(skill => {
+      const key = skill.trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key); return true;
+    }),
+  })).filter(group => group.skills.length);
+  const rows = groups.map(group => [
+    "\\noindent\\begin{minipage}[t]{0.225\\linewidth}\\small",
+    `\\textbf{${escapeLatex(group.name)}}`,
+    "\\end{minipage}\\hfill\\begin{minipage}[t]{0.75\\linewidth}\\small",
+    group.skills.map(escapeLatex).join(", "),
+    "\\end{minipage}\\par\\vspace{5pt}",
+  ].join("\n"));
   return ["\\section{Technical Skills}", ...rows].join("\n");
 }
 
@@ -176,7 +186,7 @@ function certificationsSection(resume: StructuredResume): string {
   if (!resume.certifications?.length) return "";
   const entries = resume.certifications.map(entry => {
     const url = certificationUrl(entry.url);
-    const name = url ? `\\href{${escapeLatexUrl(url)}}{${escapeLatex(entry.name)} \\resumeBlueText{\\scriptsize [verify]}}` : escapeLatex(entry.name);
+    const name = url ? `\\href{${escapeLatexUrl(url)}}{${escapeLatex(entry.name)} \\resumeLinkIcon{}}` : escapeLatex(entry.name);
     const description = ""; // Compact credential list, matching the reference; source notes stay in the profile.
     return `  \\item\\small{${name}\\par${description}}`;
   });
@@ -196,6 +206,8 @@ export function renderResumeLatex(resume: StructuredResume): string {
 \newcommand{\resumeBlueStart}{\pdfliteral direct{0.459 0.808 0.945 rg 0.459 0.808 0.945 RG}}
 \newcommand{\resumeBlueEnd}{\pdfliteral direct{0 g 0 G}}
 \newcommand{\resumeBlueText}[1]{\leavevmode\resumeBlueStart#1\resumeBlueEnd}
+% Small vector chain-link symbol; no extra font/package or visible URL needed.
+\newcommand{\resumeLinkIcon}{\hbox to 10bp{\pdfliteral{q 0.459 0.808 0.945 RG 0.65 w 1 J 1 j 0.53 0.53 -0.53 0.53 5 1.3 cm -3 0 m -5 0 -5 3 -3 3 c -0.8 3 l 1.2 3 1.2 0 -0.8 0 c h S 0.8 0 m -1.2 0 -1.2 3 0.8 3 c 3 3 l 5 3 5 0 3 0 c h S Q}\hfil}}
 \usepackage[hidelinks,breaklinks]{hyperref}
 \renewcommand{\familydefault}{\sfdefault}
 \IfFileExists{glyphtounicode.tex}{\input{glyphtounicode}}{}

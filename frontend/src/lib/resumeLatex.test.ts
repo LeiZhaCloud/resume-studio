@@ -16,7 +16,7 @@ describe("fixed LaTeX renderer", () => {
     expect(education).toBeGreaterThan(skills);
     expect(tex).toContain("\\resumeBlueStart");
     expect(tex).toContain("\\renewcommand{\\familydefault}{\\sfdefault}");
-    expect(tex).toContain("\\begin{minipage}[t]{0.48\\linewidth}");
+    expect(tex).toContain("\\begin{minipage}[t]{0.225\\linewidth}");
     expect(tex).toContain(escapeLatex(completeResume.experience[0].title));
     expect(tex).toContain(escapeLatex(completeResume.experience[0].organization));
     expect(tex).toContain(escapeLatex(completeResume.experience[1].title));
@@ -67,5 +67,7 @@ describe("fixed LaTeX renderer", () => {
     for (const entry of certifications) expect(tex).toContain(`\\href{https://example.com/verify/${certifications.indexOf(entry)}?a=1\\&b=2}{${entry.name}`);
     expect(tex.indexOf("\\section{Certifications}")).toBeLessThan(tex.indexOf("\\section{Experience}"));
     expect(tex).not.toContain("Private renewal note");
+    expect(tex).not.toContain("[verify]");
+    expect(tex.match(/\\resumeLinkIcon\{\}/g)).toHaveLength(7);
   });
 });
