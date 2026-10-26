@@ -59,6 +59,7 @@ export interface ResumeCertification {
   name: string;
   url: string;
   description: string;
+  date?: string;
 }
 
 export interface ResumeProfile {

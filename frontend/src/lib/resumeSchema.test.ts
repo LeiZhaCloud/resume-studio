@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { completeResume } from "../test/resumeFixtures";
-import { normalizeStoredStructuredResume, parseStructuredResumeJson, trimLowestPriorityContent } from "./resumeSchema";
+import { RESUME_JSON_SCHEMA, normalizeStoredStructuredResume, parseStructuredResumeJson, trimLowestPriorityContent } from "./resumeSchema";
 describe("structured resume schema", () => {
+  it("keeps the full refinement schema compatible with strict structured outputs", () => {
+    const visit = (value: unknown) => {
+      if (!value || typeof value !== "object") return;
+      const node = value as Record<string, unknown>;
+      if (node.type === "object") expect(new Set(node.required as string[])).toEqual(new Set(Object.keys(node.properties as object)));
+      Object.values(node).forEach(visit);
+    };
+    visit(RESUME_JSON_SCHEMA);
+  });
+  it("preserves historical certification dates without inferring validity", () => {
+    const source = { ...completeResume, certifications: [{ name: "Azure Expert", url: "https://example.com/credential", description: "", date: "Renewed 2025" }] };
+    expect(parseStructuredResumeJson(JSON.stringify(source))).toEqual(source);
+  });
   it("preserves an optional professional summary through parsing and stored normalization", () => {
     const source = { ...completeResume, summary: "Infrastructure engineer experienced in Linux and cloud operations." };
     expect(parseStructuredResumeJson(JSON.stringify(source))).toEqual(source);

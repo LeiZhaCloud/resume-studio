@@ -186,7 +186,8 @@ function certificationsSection(resume: StructuredResume): string {
   if (!resume.certifications?.length) return "";
   const entries = resume.certifications.map(entry => {
     const url = certificationUrl(entry.url);
-    const name = url ? `\\href{${escapeLatexUrl(url)}}{${escapeLatex(entry.name)} \\resumeLinkIcon{}}` : escapeLatex(entry.name);
+    const label = escapeLatex(entry.name) + (entry.date?.trim() ? ` (${escapeLatex(entry.date)})` : "");
+    const name = url ? `\\href{${escapeLatexUrl(url)}}{${label} \\resumeLinkIcon{}}` : label;
     const description = ""; // Compact credential list, matching the reference; source notes stay in the profile.
     return `  \\item\\small{${name}\\par${description}}`;
   });

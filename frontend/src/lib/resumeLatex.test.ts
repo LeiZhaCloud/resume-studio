@@ -3,6 +3,11 @@ import { completeResume } from "../test/resumeFixtures";
 import { escapeLatex, inspectPdf, normalizeResumeText, renderResumeLatex } from "./resumeLatex";
 
 describe("fixed LaTeX renderer", () => {
+  it("prints supplied certification dates without printing private descriptions", () => {
+    const tex = renderResumeLatex({ ...completeResume, certifications: [{ name: "Azure Expert", url: "https://example.com/credential", description: "Private validity note", date: "Renewed 2025" }] });
+    expect(tex).toContain("Azure Expert (Renewed 2025) \\resumeLinkIcon{}");
+    expect(tex).not.toContain("Private validity note");
+  });
   it("prints a professional summary before skills and omits an empty summary", () => {
     const tex = renderResumeLatex({ ...completeResume, summary: "Systems & cloud infrastructure engineer." });
     expect(tex.indexOf("\\section{Professional Summary}")).toBeLessThan(tex.indexOf("\\section{Technical Skills}"));

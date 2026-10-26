@@ -98,11 +98,12 @@ export const RESUME_JSON_SCHEMA = {
     certifications: {
       type: "array",
       items: {
-        type: "object", additionalProperties: false, required: ["name", "url", "description"],
+        type: "object", additionalProperties: false, required: ["name", "url", "description", "date"],
         properties: {
           name: { type: "string" },
           url: { type: "string" },
           description: { type: "string", maxLength: 160 },
+          date: { type: "string" },
         },
       },
     },
@@ -276,8 +277,10 @@ function validateResume(value: unknown, requireBothExperienceTypes: boolean): St
   if (!Array.isArray(root.certifications)) throw new Error("certifications must be an array");
   const certifications = root.certifications.map((value, index) => {
     const path = `certifications[${index}]`;
-    const item = exactRecord(value, path, ["name", "url", "description"]);
+    const raw = asRecord(value, path);
+    const item = exactRecord(value, path, ["name", "url", "description", ...("date" in raw ? ["date"] : [])]);
     return {
+      ...("date" in item ? { date: text(item.date, `${path}.date`) } : {}),
       name: text(item.name, `${path}.name`, true),
       url: certificationUrl(text(item.url, `${path}.url`)),
       description: text(item.description, `${path}.description`),
