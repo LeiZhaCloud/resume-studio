@@ -30,6 +30,13 @@ it("validates, restores, and renders dynamic categories without fixed headings",
   expect(skillCategories(completeResume.technicalSkills)).toHaveLength(4);
 });
 
+it("accepts six distinct skill categories and rejects seven", () => {
+  const categories = Array.from({ length: 6 }, (_, index) => ({ name: `Category ${index}`, skills: [`Tool ${index}`] }));
+  const resume = { ...completeResume, technicalSkills: { categories } };
+  expect(parseStructuredResumeJson(JSON.stringify(resume)).technicalSkills).toEqual({ categories });
+  expect(() => parseStructuredResumeJson(JSON.stringify({ ...resume, technicalSkills: { categories: [...categories, { name: "Seventh", skills: ["Tool 7"] }] } }))).toThrow("3-6 categories");
+});
+
 it("rejects empty, duplicate, or excessive categories", () => {
   for (const categories of [[], Array(6).fill(dynamicResume.technicalSkills.categories[0]), [
     ...dynamicResume.technicalSkills.categories.slice(0, 2), { name: "Languages", skills: ["SQL"] },
@@ -53,6 +60,6 @@ it("permits narrow skill supplements without manufacturing experience claims", (
   expect(prompt).toContain("saved inventory may be incomplete");
   expect(prompt).toContain("naturally fits the candidate's existing project technologies");
   expect(prompt).toContain("A supplemented skill is not evidence of past use");
-  expect(prompt).toContain("3-5 concise, nonempty categories");
+  expect(prompt).toContain("3-6 concise, nonempty categories");
   expect(prompt).toContain("15-25 useful skills");
 });

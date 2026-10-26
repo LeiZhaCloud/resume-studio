@@ -173,12 +173,10 @@ function technicalSkillsSection(resume: StructuredResume): string {
     }),
   })).filter(group => group.skills.length);
   const rows = groups.map(group => [
-    "\\noindent\\begin{minipage}[t]{0.225\\linewidth}\\small\\raggedright",
-    `\\textbf{${escapeLatex(group.name)}}:`,
-    "\\end{minipage}\\hfill\\begin{minipage}[t]{0.75\\linewidth}\\small\\raggedright",
+    `\\noindent\\textbf{${escapeLatex(group.name)}}: `,
     group.skills.map(escapeLatex).join(", "),
-    "\\end{minipage}\\par\\vspace{5pt}",
-  ].join("\n"));
+    "\\par\\vspace{4pt}",
+  ].join(""));
   return ["\\section{Technical Skills}", ...rows].join("\n");
 }
 
@@ -214,11 +212,11 @@ export function renderResumeLatex(resume: StructuredResume): string {
 \IfFileExists{glyphtounicode.tex}{\input{glyphtounicode}}{}
 
 \pagestyle{empty}
-\setlength{\oddsidemargin}{-0.45in}
-\setlength{\evensidemargin}{-0.45in}
-\setlength{\textwidth}{7.4in}
-\setlength{\topmargin}{-0.65in}
-\setlength{\textheight}{10.05in}
+\setlength{\oddsidemargin}{-0.35in}
+\setlength{\evensidemargin}{-0.35in}
+\setlength{\textwidth}{7.2in}
+\setlength{\topmargin}{-0.5in}
+\setlength{\textheight}{9.9in}
 \setlength{\headheight}{0pt}
 \setlength{\headsep}{0pt}
 \setlength{\footskip}{0.25in}
@@ -231,7 +229,7 @@ export function renderResumeLatex(resume: StructuredResume): string {
 \renewcommand{\section}[1]{\par\addvspace{7pt}\resumeBlueStart\hrule height 0.5pt\resumeBlueEnd\vspace{1pt}\noindent\makebox[\linewidth]{\bfseries\normalsize\MakeUppercase{#1}}\par\vspace{1pt}\resumeBlueStart\hrule height 0.5pt\resumeBlueEnd\nobreak\vspace{4pt}}
 \pdfgentounicode=1
 
-\newcommand{\resumeItem}[1]{\item\small{#1}}
+\newcommand{\resumeItem}[1]{\item{#1}}
 \newcommand{\resumeSubheading}[4]{
   \item\begin{minipage}{\linewidth}
     \noindent\parbox[t]{0.67\linewidth}{\bfseries #1}\hfill\parbox[t]{0.30\linewidth}{\raggedleft\small #2}\par\vspace{2pt}
@@ -245,7 +243,7 @@ export function renderResumeLatex(resume: StructuredResume): string {
   \end{tabular*}\vspace{1pt}
 }
 \newcommand{\resumeSubproject}[1]{\vspace{2pt}\noindent\textbf{\small #1}\vspace{1pt}}
-\newcommand{\resumeItemListStart}{\begin{list}{-}{\setlength{\leftmargin}{0.13in}\setlength{\itemsep}{2pt}\setlength{\parsep}{0pt}\setlength{\topsep}{3pt}}}
+\newcommand{\resumeItemListStart}{\begin{list}{-}{\setlength{\leftmargin}{0.13in}\setlength{\itemsep}{4pt}\setlength{\parsep}{0pt}\setlength{\topsep}{4pt}}}
 \newcommand{\resumeItemListEnd}{\end{list}\vspace{2pt}}
 \newcommand{\resumeSubHeadingListStart}{\begin{list}{}{\setlength{\leftmargin}{0in}\setlength{\itemsep}{5pt}\setlength{\parsep}{0pt}\setlength{\topsep}{0pt}}}
 \newcommand{\resumeSubHeadingListEnd}{\end{list}}
@@ -255,7 +253,7 @@ export function renderResumeLatex(resume: StructuredResume): string {
 \noindent{\fontsize{25}{29}\selectfont\bfseries ${escapeLatex(resume.header.name.toUpperCase())}}\par\vspace{8pt}
 {\small ${contact}}\par\vspace{3pt}
 
-${resume.summary?.trim() ? `\\section{Professional Summary}\n{\\small ${escapeLatex(resume.summary)}}\\par\n` : ""}
+${resume.summary?.trim() ? `\\section{Professional Summary}\n${escapeLatex(resume.summary)}\\par\n` : ""}
 ${technicalSkillsSection(resume)}
 ${certifications ? `\n${certifications}\n` : ""}
 ${experienceSection(resume)}

@@ -111,7 +111,7 @@ export const RESUME_JSON_SCHEMA = {
       type: "object", additionalProperties: false, required: ["categories"],
       properties: {
         categories: {
-          type: "array", minItems: 3, maxItems: 5,
+          type: "array", minItems: 3, maxItems: 6,
           items: {
             type: "object", additionalProperties: false, required: ["name", "skills"],
             properties: {
@@ -290,8 +290,8 @@ function validateResume(value: unknown, requireBothExperienceTypes: boolean): St
   let technicalSkills: StructuredResume["technicalSkills"];
   if ("categories" in asRecord(root.technicalSkills, "technicalSkills")) {
     const value = exactRecord(root.technicalSkills, "technicalSkills", ["categories"]);
-    if (!Array.isArray(value.categories) || value.categories.length < 3 || value.categories.length > 5) {
-      throw new Error("technicalSkills must contain 3-5 categories");
+    if (!Array.isArray(value.categories) || value.categories.length < 3 || value.categories.length > 6) {
+      throw new Error("technicalSkills must contain 3-6 categories");
     }
     const names = new Set<string>();
     technicalSkills = { categories: value.categories.map((raw, index) => {

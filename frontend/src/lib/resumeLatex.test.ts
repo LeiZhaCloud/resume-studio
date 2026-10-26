@@ -34,7 +34,7 @@ describe("fixed LaTeX renderer", () => {
     expect(education).toBeGreaterThan(skills);
     expect(tex).toContain("\\resumeBlueStart");
     expect(tex).toContain("\\renewcommand{\\familydefault}{\\sfdefault}");
-    expect(tex).toContain("\\begin{minipage}[t]{0.225\\linewidth}");
+    expect(tex).not.toContain("\\begin{minipage}[t]{0.225\\linewidth}");
     expect(tex).toContain(escapeLatex(completeResume.experience[0].title));
     expect(tex).toContain(escapeLatex(completeResume.experience[0].organization));
     expect(tex).toContain(escapeLatex(completeResume.experience[1].title));
