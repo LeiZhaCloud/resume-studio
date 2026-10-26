@@ -106,8 +106,8 @@ describe("resume version persistence", () => {
     expect(refined.structured_resume.header.location).toBe("Remote");
     await expect(api.refineResumeVersion(original.id, app.id, "{}" )).rejects.toThrow();
     expect(await api.resumes()).toHaveLength(2);
-    vi.mocked(compileResumeLatex).mockResolvedValueOnce({ pdfFile: new Blob(), pdfBytes: new Uint8Array(), pageCount: 2, log: "" });
-    await expect(api.refineResumeVersion(original.id, app.id, JSON.stringify(changed))).rejects.toThrow("one page");
+    vi.mocked(compileResumeLatex).mockResolvedValueOnce({ pdfFile: new Blob(), pdfBytes: new Uint8Array(), pageCount: 3, log: "" });
+    await expect(api.refineResumeVersion(original.id, app.id, JSON.stringify(changed))).rejects.toThrow("two pages");
     expect(await api.resumes()).toHaveLength(2);
   });
   beforeEach(async () => {
@@ -167,6 +167,11 @@ describe("resume version persistence", () => {
     expect(updated.tex_source.indexOf("\\section{Education}")).toBeGreaterThan(updated.tex_source.indexOf("\\section{Technical Skills}"));
     expect((await api.getResumeVersion(original.id))?.structured_resume.certifications).toEqual([]);
     expect((await api.applications())[0].assigned_resume_version_id).toBe(updated.id);
+    await api.updateProfile({ ...profile, certifications: Array.from({ length: 7 }, (_, index) => ({ name: `Credential ${index}`, url: `https://example.com/verify/${index}`, description: "" })) });
+    const linked = await api.reformatResumeVersion(updated.id, app.id);
+    expect(linked.structured_resume.certifications).toHaveLength(7);
+    expect(linked.structured_resume.certifications?.every(entry => entry.url.startsWith("https://example.com/verify/"))).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(1);
     const other = await api.createApplication({ company_id: 2, job_title: "Other", job_description: "Other JD", notes: "" });
     await expect(api.reformatResumeVersion(original.id, other.id)).rejects.toThrow("this company");
   });

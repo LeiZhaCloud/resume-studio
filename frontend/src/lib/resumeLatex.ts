@@ -122,7 +122,7 @@ function bulletList(bullets: Array<{ text: string; highlights: string[] } | stri
 
 function educationSection(resume: StructuredResume): string {
   const entries = resume.education.map(entry => [
-    `  \\resumeSubheading{${escapeLatex(entry.institution)}}{${escapeLatex(entry.dates)}}{${escapeLatex(entry.degree)}}{${escapeLatex(entry.location)}}`,
+    `  \\resumeSubheading{${escapeLatex(entry.degree)}}{${escapeLatex(entry.dates)}}{${escapeLatex(entry.institution)}}{${escapeLatex(entry.location)}}`,
     entry.details.length ? `  ${itemList(entry.details).replace(/\n/g, "\n  ")}` : "",
   ].filter(Boolean).join("\n"));
   return ["\\section{Education}", "\\resumeSubHeadingListStart", ...entries, "\\resumeSubHeadingListEnd"].join("\n");
@@ -163,48 +163,49 @@ function projectsSection(resume: StructuredResume): string {
 }
 
 function technicalSkillsSection(resume: StructuredResume): string {
-  const groups: Array<[string, string[]]> = skillCategories(resume.technicalSkills).map(group => [group.name, group.skills]);
-  const rows = groups.filter(([, values]) => values.length).map(([label, values]) => `    \\textbf{${escapeLatex(label)}}{: ${escapeLatex(values.join(", "))}} \\\\`);
-  return [
-    "\\section{Technical Skills}",
-    " \\resumeSubHeadingListStart",
-    "  \\small{\\item{",
-    ...rows,
-    "  }}",
-    " \\resumeSubHeadingListEnd",
-  ].join("\n");
+  const groups = skillCategories(resume.technicalSkills).filter(group => group.skills.length);
+  const block = (group: typeof groups[number]) => `\\textbf{${escapeLatex(group.name)}}\\par\\vspace{2pt}\n${group.skills.map(escapeLatex).join(", ")}\\par`;
+  const rows: string[] = [];
+  for (let i = 0; i < groups.length; i += 2) {
+    rows.push(`\\noindent\\begin{minipage}[t]{0.48\\linewidth}\\small\n${block(groups[i])}\n\\end{minipage}\\hfill\\begin{minipage}[t]{0.48\\linewidth}\\small\n${groups[i + 1] ? block(groups[i + 1]) : ""}\n\\end{minipage}\\par\\vspace{6pt}`);
+  }
+  return ["\\section{Technical Skills}", ...rows].join("\n");
 }
 
 function certificationsSection(resume: StructuredResume): string {
   if (!resume.certifications?.length) return "";
   const entries = resume.certifications.map(entry => {
     const url = certificationUrl(entry.url);
-    const name = url ? href(url, entry.name) : escapeLatex(entry.name);
-    const description = entry.description.trim() ? `\n    ${escapeLatex(entry.description)}\\par` : "";
-    return `  \\item\\small{\\textbf{${name}}\\par${description}}`;
+    const name = url ? `\\href{${escapeLatexUrl(url)}}{${escapeLatex(entry.name)} \\resumeBlueText{\\scriptsize [verify]}}` : escapeLatex(entry.name);
+    const description = ""; // Compact credential list, matching the reference; source notes stay in the profile.
+    return `  \\item\\small{${name}\\par${description}}`;
   });
-  return ["\\section{Certifications}", "\\resumeSubHeadingListStart", ...entries, "\\resumeSubHeadingListEnd"].join("\n");
+  return ["\\section{Certifications}", "\\begin{list}{}{\\setlength{\\leftmargin}{0in}\\setlength{\\itemsep}{1pt}\\setlength{\\parsep}{0pt}\\setlength{\\topsep}{0pt}}", ...entries, "\\end{list}"].join("\n");
 }
 
 export function renderResumeLatex(resume: StructuredResume): string {
-  const contact = headerItems(resume.header).join(" $|$ ");
+  const contact = headerItems(resume.header).join(" \\resumeBlueText{$|$} ");
   const projects = projectsSection(resume);
   const certifications = certificationsSection(resume);
-  return String.raw`% Jake's Resume-style fixed renderer
+  return String.raw`% Reference-inspired professional resume renderer
 % Layout based on https://github.com/jakegut/resume (MIT License)
 \pdfobjcompresslevel=0
 \documentclass[letterpaper,11pt]{article}
 
 \usepackage[utf8]{inputenc}
-\usepackage[hidelinks]{hyperref}
+\newcommand{\resumeBlueStart}{\pdfliteral direct{0.459 0.808 0.945 rg 0.459 0.808 0.945 RG}}
+\newcommand{\resumeBlueEnd}{\pdfliteral direct{0 g 0 G}}
+\newcommand{\resumeBlueText}[1]{\leavevmode\resumeBlueStart#1\resumeBlueEnd}
+\usepackage[hidelinks,breaklinks]{hyperref}
+\renewcommand{\familydefault}{\sfdefault}
 \IfFileExists{glyphtounicode.tex}{\input{glyphtounicode}}{}
 
 \pagestyle{empty}
-\setlength{\oddsidemargin}{-0.25in}
-\setlength{\evensidemargin}{-0.25in}
-\setlength{\textwidth}{7in}
-\setlength{\topmargin}{-0.6in}
-\setlength{\textheight}{10in}
+\setlength{\oddsidemargin}{-0.45in}
+\setlength{\evensidemargin}{-0.45in}
+\setlength{\textwidth}{7.4in}
+\setlength{\topmargin}{-0.65in}
+\setlength{\textheight}{10.05in}
 \setlength{\headheight}{0pt}
 \setlength{\headsep}{0pt}
 \setlength{\footskip}{0.25in}
@@ -214,16 +215,15 @@ export function renderResumeLatex(resume: StructuredResume): string {
 \urlstyle{same}
 \raggedbottom
 \raggedright
-\renewcommand{\section}[1]{\par\vspace{6pt}\noindent{\large\scshape #1}\par\vspace{2pt}\hrule\vspace{5pt}}
+\renewcommand{\section}[1]{\par\addvspace{7pt}\resumeBlueStart\hrule height 0.5pt\resumeBlueEnd\vspace{1pt}\noindent\makebox[\linewidth]{\bfseries\normalsize\MakeUppercase{#1}}\par\vspace{1pt}\resumeBlueStart\hrule height 0.5pt\resumeBlueEnd\nobreak\vspace{4pt}}
 \pdfgentounicode=1
 
 \newcommand{\resumeItem}[1]{\item\small{#1}}
 \newcommand{\resumeSubheading}[4]{
-  \item
-  \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
-    \textbf{#1} & #2 \\
-    \textit{\small#3} & \textit{\small #4} \\
-  \end{tabular*}\vspace{1pt}
+  \item\begin{minipage}{\linewidth}
+    \noindent\parbox[t]{0.67\linewidth}{\bfseries #1}\hfill\parbox[t]{0.30\linewidth}{\raggedleft\small #2}\par\vspace{2pt}
+    \noindent\parbox[t]{0.63\linewidth}{\itshape\small #3}\hfill\parbox[t]{0.34\linewidth}{\raggedleft\itshape\small #4}\par
+  \end{minipage}\nopagebreak[4]\vspace{2pt}
 }
 \newcommand{\resumeProjectHeading}[2]{
   \item
@@ -232,23 +232,20 @@ export function renderResumeLatex(resume: StructuredResume): string {
   \end{tabular*}\vspace{1pt}
 }
 \newcommand{\resumeSubproject}[1]{\vspace{2pt}\noindent\textbf{\small #1}\vspace{1pt}}
-\newcommand{\resumeItemListStart}{\begin{list}{$\bullet$}{\setlength{\leftmargin}{0.25in}\setlength{\itemsep}{0pt}\setlength{\parsep}{0pt}\setlength{\topsep}{2pt}}}
+\newcommand{\resumeItemListStart}{\begin{list}{-}{\setlength{\leftmargin}{0.13in}\setlength{\itemsep}{2pt}\setlength{\parsep}{0pt}\setlength{\topsep}{3pt}}}
 \newcommand{\resumeItemListEnd}{\end{list}\vspace{2pt}}
-\newcommand{\resumeSubHeadingListStart}{\begin{list}{}{\setlength{\leftmargin}{0.15in}\setlength{\itemsep}{0pt}\setlength{\parsep}{0pt}\setlength{\topsep}{0pt}}}
+\newcommand{\resumeSubHeadingListStart}{\begin{list}{}{\setlength{\leftmargin}{0in}\setlength{\itemsep}{5pt}\setlength{\parsep}{0pt}\setlength{\topsep}{0pt}}}
 \newcommand{\resumeSubHeadingListEnd}{\end{list}}
 
 \begin{document}
 
-\begin{center}
-  \textbf{\Huge \scshape ${escapeLatex(resume.header.name)}} \\ \vspace{1pt}
-  \small ${contact}
-\end{center}
+\noindent{\fontsize{25}{29}\selectfont\bfseries ${escapeLatex(resume.header.name.toUpperCase())}}\par\vspace{8pt}
+{\small ${contact}}\par\vspace{3pt}
 
+${technicalSkillsSection(resume)}
+${certifications ? `\n${certifications}\n` : ""}
 ${experienceSection(resume)}
 ${projects ? `\n${projects}\n` : ""}
-${certifications ? `\n${certifications}\n` : ""}
-${technicalSkillsSection(resume)}
-
 ${educationSection(resume)}
 
 \end{document}

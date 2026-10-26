@@ -12,8 +12,11 @@ describe("fixed LaTeX renderer", () => {
     expect(education).toBeGreaterThan(0);
     expect(experience).toBeLessThan(education);
     expect(projects).toBeGreaterThan(experience);
-    expect(skills).toBeGreaterThan(projects);
+    expect(skills).toBeLessThan(experience);
     expect(education).toBeGreaterThan(skills);
+    expect(tex).toContain("\\resumeBlueStart");
+    expect(tex).toContain("\\renewcommand{\\familydefault}{\\sfdefault}");
+    expect(tex).toContain("\\begin{minipage}[t]{0.48\\linewidth}");
     expect(tex).toContain(escapeLatex(completeResume.experience[0].title));
     expect(tex).toContain(escapeLatex(completeResume.experience[0].organization));
     expect(tex).toContain(escapeLatex(completeResume.experience[1].title));
@@ -56,5 +59,13 @@ describe("fixed LaTeX renderer", () => {
   it("detects page count, US Letter size, and PDF links", () => {
     const bytes = new TextEncoder().encode("/Type /Pages /Count 1 /Type /Page /MediaBox [0 0 612 792] /Subtype /Link /URI (https://example.com)");
     expect(inspectPdf(bytes)).toEqual({ pageCount: 1, isUsLetter: true, hasLinks: true });
+  });
+
+  it("keeps all seven certificate verification hyperlinks in compact rows above Experience", () => {
+    const certifications = Array.from({ length: 7 }, (_, index) => ({ name: `Credential ${index}`, url: `https://example.com/verify/${index}?a=1&b=2`, description: "Private renewal note" }));
+    const tex = renderResumeLatex({ ...completeResume, certifications });
+    for (const entry of certifications) expect(tex).toContain(`\\href{https://example.com/verify/${certifications.indexOf(entry)}?a=1\\&b=2}{${entry.name}`);
+    expect(tex.indexOf("\\section{Certifications}")).toBeLessThan(tex.indexOf("\\section{Experience}"));
+    expect(tex).not.toContain("Private renewal note");
   });
 });

@@ -23,7 +23,8 @@ it("validates, restores, and renders dynamic categories without fixed headings",
   expect(normalizeStoredStructuredResume(parsed)).toEqual(parsed);
   const tex = renderResumeLatex(parsed);
   expect(tex).toContain("\\textbf{Tools \\& Systems}");
-  expect(tex).toContain("REST APIs, Object-Oriented Design");
+  expect(tex).toContain("REST APIs");
+  expect(tex).toContain("Object-Oriented Design");
   expect(tex).not.toContain("\\textbf{Libraries}");
   expect(tex).not.toContain("limma");
   expect(skillCategories(completeResume.technicalSkills)).toHaveLength(4);

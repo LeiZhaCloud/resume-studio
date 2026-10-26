@@ -529,7 +529,7 @@ async function callDeepSeek(settings: AiSettings, messages: Array<{ role: "syste
 
 async function callResumeAi(settings: AiSettings, userPrompt: string, profileData: ResumeProfileUpdate, refine = false): Promise<{ resume: StructuredResume; usage?: AiUsage }> {
   const schema = refine ? RESUME_JSON_SCHEMA : resumeContentSchema(profileData);
-  const instructions = refine ? "Refine the supplied existing resume only according to the user instruction. Preserve unrelated content and factual details verbatim as much as possible. Do not regenerate from the master profile. Do not invent metrics, employers, dates, responsibilities or outcomes. Preserve certification names and verification links; do not add or alter credentials unless the user provides specific certification information in the instruction. Keep certificate descriptions very brief. Keep one page and the JSON schema. Highlights must be short exact phrases from the bullet, at most two per bullet. Return only the complete final structured JSON; reason internally in this single call." : resumeSkill;
+  const instructions = refine ? "Refine the supplied existing resume only according to the user instruction. Preserve unrelated content and factual details verbatim as much as possible. Do not regenerate from the master profile. Do not invent metrics, employers, dates, responsibilities or outcomes. Preserve certification names and verification links; do not add or alter credentials unless the user provides specific certification information in the instruction. Keep certificate descriptions very brief. Keep within two pages and follow the JSON schema. Highlights must be short exact phrases from the bullet, at most two per bullet. Return only the complete final structured JSON; reason internally in this single call." : resumeSkill;
   const parse = (raw: string) => refine ? parseStructuredResumeJson(raw, false) : assembleResume(raw, profileData);
   if (settings.provider !== "openai") {
     const raw = settings.provider === "gemini"
@@ -573,22 +573,22 @@ export function estimateResumeInput(profileData: ResumeProfileUpdate) {
 
 async function generationPrompt(profileData: ResumeProfile, apps: Application[], extraInstructions: string) {
   const targets = apps.map(app => ({ title: app.job_title, jd: app.job_description }));
-  return `Create ONE focused, one-page company resume suitable for ALL the selected technical applications below. Find their shared engineering direction and prioritize the candidate's strongest relevant evidence; do not concatenate role-specific resumes or cover every incidental keyword. The first listed application has no special priority. The fixed renderer owns all layout.\n\nCompany: ${await companyName(apps[0].company_id)}\n\nMaster resume profile (factual basis for experience; skill inventory is non-exhaustive, and Technical Skills may be supplemented from the JDs):\n${JSON.stringify(resumeContentSource(profileData), null, 2)}\n\nSelected applications and job descriptions:\n${JSON.stringify(targets, null, 2)}\n\nExtra user instructions:\n${extraInstructions || "None"}`;
+  return `Create ONE focused, two-page company resume suitable for ALL the selected technical applications below. Find their shared engineering direction and prioritize the candidate's strongest relevant evidence; do not concatenate role-specific resumes or cover every incidental keyword. The first listed application has no special priority. The fixed renderer owns all layout.\n\nCompany: ${await companyName(apps[0].company_id)}\n\nMaster resume profile (factual basis for experience; skill inventory is non-exhaustive, and Technical Skills may be supplemented from the JDs):\n${JSON.stringify(resumeContentSource(profileData), null, 2)}\n\nSelected applications and job descriptions:\n${JSON.stringify(targets, null, 2)}\n\nExtra user instructions:\n${extraInstructions || "None"}`;
 }
 
-async function renderOnePageResume(initial: StructuredResume) {
+async function renderResumeDocument(initial: StructuredResume) {
   let structuredResume = applyResumeLayout(initial);
   let texSource = renderResumeLatex(structuredResume);
   let compilation = await compileResumeLatex(texSource);
   // Page fitting is local only: no extra paid AI calls, including after a failure.
-  for (let step = 0; step < 64 && compilation.pageCount > 1; step += 1) {
+  for (let step = 0; step < 64 && compilation.pageCount > 2; step += 1) {
     const trimmed = trimLowestPriorityContent(structuredResume);
     if (!trimmed) break;
     structuredResume = trimmed;
     texSource = renderResumeLatex(structuredResume);
     compilation = await compileResumeLatex(texSource);
   }
-  if (compilation.pageCount !== 1) throw new Error("Local fitting could not produce one page. The AI request may have been charged; no automatic retry was made.");
+  if (compilation.pageCount < 1 || compilation.pageCount > 2) throw new Error("Local fitting could not fit within two pages. The AI request may have been charged; no automatic retry was made.");
   return { structuredResume, texSource, pdfFile: compilation.pdfFile };
 }
 async function saveAssignedVersion(value: Omit<ResumeVersion, "id">) {
@@ -671,7 +671,7 @@ async function refineResumeVersion(id: number, applicationId: number, content: s
   resume = applyResumeLayout(resume);
   const tex = renderResumeLatex(resume);
   const compiled = await compileResumeLatex(tex);
-  if (compiled.pageCount !== 1) throw new Error("Refinement does not fit one page. Shorten the edited content and try again; the original version is unchanged." + (usage ? ` Estimated cost: $${usage.estimated_usd.toFixed(4)}.` : ""));
+  if (compiled.pageCount < 1 || compiled.pageCount > 2) throw new Error("Refinement does not fit within two pages. Shorten the edited content and try again; the original version is unchanged." + (usage ? ` Estimated cost: $${usage.estimated_usd.toFixed(4)}.` : ""));
   return saveAssignedVersion({ application_id: applicationId, application_ids: [applicationId], company_id: app.company_id,
     resume_group_id: original.resume_group_id ?? `company:${original.company_id}/application:${original.application_id}`,
     resume_title: original.resume_title || app.job_title || "Resume",
@@ -689,7 +689,11 @@ async function reformatResumeVersion(id: number, applicationId: number) {
   const currentProfile = await profile();
   const credentials = [...(original.structured_resume.certifications || [])];
   for (const entry of currentProfile.certifications || []) {
-    if (entry.name.trim() && !credentials.some(item => item.name === entry.name && item.url === entry.url)) {
+    const existing = credentials.findIndex(item => item.name.trim().toLowerCase() === entry.name.trim().toLowerCase());
+    if (existing >= 0) {
+      // A newly supplied verification URL updates the same credential, not a duplicate row.
+      credentials[existing] = { ...credentials[existing], url: entry.url.trim() || credentials[existing].url };
+    } else if (entry.name.trim()) {
       // Do not copy private validation notes from the profile into resume descriptions.
       credentials.push({ name: entry.name, url: entry.url, description: "" });
     }
@@ -724,7 +728,7 @@ async function generateResumeVersion(applicationId: number, extraInstructions: s
   if (targets.some(target => target!.company_id !== app.company_id)) throw new Error("Select applications from this company only.");
   const generated = await callResumeAi(settings, await generationPrompt(profileData, targets.map(target => target!), extraInstructions), profileData);
   let rendered;
-  try { rendered = await renderOnePageResume(generated.resume); }
+  try { rendered = await renderResumeDocument(generated.resume); }
   catch (error) {
     const charge = generated.usage ? ` Estimated cost: US$${generated.usage.estimated_usd.toFixed(4)}.` : " Cost unavailable.";
     throw new Error(`${error instanceof Error ? error.message : "PDF generation failed"}${charge}`);
