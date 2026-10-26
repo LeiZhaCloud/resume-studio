@@ -5,6 +5,7 @@ import { assembleResume, resumeContentSource, resumeContentSchema } from "../lib
 import { profileDetails } from "../lib/profileDetails";
 
 import resumeSkill from "../skills/resume-generation.md?raw";
+import resumeTemplate from "../skills/resume-template-v7.md?raw";
 import type {
   AiSettings, AiUsage, Analytics, Application, ApplicationStage, Company, CompanyState,
   CompanyCatalogItem, CompanyInput, CompanyUpdate, FeatureStatus, GeneratedResume, ResumeProfile, ResumeProfileUpdate,
@@ -246,6 +247,7 @@ function migrateProfileData(raw: Record<string, unknown>): ResumeProfile {
     name: typeof entry?.name === "string" ? entry.name : "",
     url: typeof entry?.url === "string" ? entry.url : "",
     description: typeof entry?.description === "string" ? entry.description : "",
+    ...(typeof entry?.date === "string" ? { date: entry.date } : {}),
   })) : [];
   merged.skillInventory = masterSkills(merged);
   return merged;
@@ -529,7 +531,8 @@ async function callDeepSeek(settings: AiSettings, messages: Array<{ role: "syste
 
 async function callResumeAi(settings: AiSettings, userPrompt: string, profileData: ResumeProfileUpdate, refine = false): Promise<{ resume: StructuredResume; usage?: AiUsage }> {
   const schema = refine ? RESUME_JSON_SCHEMA : resumeContentSchema(profileData);
-  const instructions = refine ? "Refine the supplied existing resume only according to the user instruction. Preserve unrelated content and factual details verbatim as much as possible. Do not regenerate from the master profile. Do not invent metrics, employers, dates, responsibilities or outcomes. Preserve certification names and verification links; do not add or alter credentials unless the user provides specific certification information in the instruction. Keep certificate descriptions very brief. Keep within two pages and follow the JSON schema. Highlights must be short exact phrases from the bullet, at most two per bullet. Return only the complete final structured JSON; reason internally in this single call." : resumeSkill;
+  const baseInstructions = refine ? "Refine the supplied existing resume only according to the user instruction. Preserve unrelated content and factual details verbatim as much as possible. Do not regenerate from the master profile. Do not invent metrics, employers, dates, responsibilities or outcomes. Preserve certification names and verification links; do not add or alter credentials unless the user provides specific certification information in the instruction. Keep certificate descriptions very brief. Keep within two pages and follow the JSON schema. Highlights must be short exact phrases from the bullet, at most two per bullet. Return only the complete final structured JSON; reason internally in this single call." : resumeSkill;
+  const instructions = `${baseInstructions}\n\n${resumeTemplate}`;
   const parse = (raw: string) => refine ? parseStructuredResumeJson(raw, false) : assembleResume(raw, profileData);
   if (settings.provider !== "openai") {
     const raw = settings.provider === "gemini"
@@ -568,12 +571,12 @@ async function callResumeAi(settings: AiSettings, userPrompt: string, profileDat
   catch (error) { throw new Error(`${error instanceof Error ? error.message : "Invalid JSON"} No automatic retry was made.${charge}`); }
 }
 export function estimateResumeInput(profileData: ResumeProfileUpdate) {
-  return estimateInputTokens(resumeSkill + JSON.stringify(resumeContentSchema(profileData)) + JSON.stringify(resumeContentSource(profileData), null, 2));
+  return estimateInputTokens(resumeTemplate + resumeSkill + JSON.stringify(resumeContentSchema(profileData)) + JSON.stringify(resumeContentSource(profileData), null, 2));
 }
 
 async function generationPrompt(profileData: ResumeProfile, apps: Application[], extraInstructions: string) {
   const targets = apps.map(app => ({ title: app.job_title, jd: app.job_description }));
-  return `Create ONE focused, two-page company resume suitable for ALL the selected technical applications below. Find their shared engineering direction and prioritize the candidate's strongest relevant evidence; do not concatenate role-specific resumes or cover every incidental keyword. The first listed application has no special priority. The fixed renderer owns all layout.\n\nCompany: ${await companyName(apps[0].company_id)}\n\nMaster resume profile (factual basis for experience; skill inventory is non-exhaustive, and Technical Skills may be supplemented from the JDs):\n${JSON.stringify(resumeContentSource(profileData), null, 2)}\n\nSelected applications and job descriptions:\n${JSON.stringify(targets, null, 2)}\n\nExtra user instructions:\n${extraInstructions || "None"}`;
+  return `Create ONE focused, two-page company resume suitable for ALL the selected technical applications below. Find their shared engineering direction and prioritize the candidate's strongest relevant evidence; do not concatenate role-specific resumes or cover every incidental keyword. The first listed application has no special priority. The fixed renderer owns all layout.\n\nCompany: ${await companyName(apps[0].company_id)}\n\nMaster resume profile (factual basis for experience and skills; use JDs to prioritize supported technologies, not to invent missing skills):\n${JSON.stringify(resumeContentSource(profileData), null, 2)}\n\nSelected applications and job descriptions:\n${JSON.stringify(targets, null, 2)}\n\nExtra user instructions:\n${extraInstructions || "None"}`;
 }
 
 async function renderResumeDocument(initial: StructuredResume) {

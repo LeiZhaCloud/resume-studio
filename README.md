@@ -48,7 +48,7 @@ Generation, AI refinement and Test Connection use `https://api.deepseek.com/chat
 
 ## Resume layout and complete credentials
 
-The exported section order is Experience → optional Projects → Certifications → Technical Skills → Education. Experience is sorted locally by end date descending (Present first), then start date descending; missing dates remain stable at the end. This applies to generated, refined and locally updated versions without changing the profile's entered dates or entry order.
+The exported section order is Professional Summary → Technical Skills → Certifications → Experience → optional Projects → Education. Experience is sorted locally by end date descending (Present first), then start date descending; missing dates remain stable at the end. This applies to generated, refined and locally updated versions without changing the profile's entered dates or entry order.
 
 Generation retains every named certification from the profile, even if AI omits it. Fitting can shorten descriptions but never removes certificate names or links. AI refinement preserves the original credential list. Source status/renewal caveats remain in the profile; missing AI descriptions stay empty rather than copying private source notes.
 
@@ -56,8 +56,14 @@ Existing PDFs remain immutable. Use **Update layout & certifications** in Resume
 
 ## Reference-inspired PDF styling
 
-The current template uses a left-aligned uppercase name, sans-serif body, pale-blue rules around centered uppercase section headings, a aligned category-and-technology rows, compact linked certification names, reverse chronological experience, and Education last. Long role headings wrap without colliding with dates. Export order is Technical Skills → Certifications → Experience → optional Projects → Education.
+The current template uses a left-aligned uppercase name, sans-serif body, pale-blue rules around centered uppercase section headings, continuous single-column skill paragraphs, compact linked certification names, reverse chronological experience, and Education last. Long role headings wrap without colliding with dates. Export order is Professional Summary → Technical Skills → Certifications → Experience → optional Projects → Education.
 
 The default generation/refinement budget is now up to two pages, appropriate to the supplied senior-career reference. All certificate names and URLs remain protected; optional credential descriptions are kept as metadata rather than taking a second printed line. Existing PDFs are preserved until **Update layout & certifications** creates a new local version. Verification URLs entered in the profile replace blank/outdated URLs for the same certificate without duplicating its row. Personal credential links remain browser-local and are never bundled with the public source.
 
-Skills now use a consistent left category column and right technology column with deduplicated entries. Certificate verification is indicated by a small vector chain-link symbol; both the title and symbol remain inside the original hyperlink.
+Skills now use continuous single-column paragraphs with deduplicated entries. Certificate verification is indicated by a small vector chain-link symbol; both the title and symbol remain inside the original hyperlink.
+
+## Default generation template: Classic Blue v7
+
+Both generation and AI refinement apply `frontend/src/skills/resume-template-v7.md`. Infrastructure/cloud/DevOps resumes default to six source-supported skill groups, a concise summary and 4-5 bullets for a current independent infrastructure role. Roles retain accurate ownership, migration direction and source facts. Kubernetes is the employer-facing term. Skills must be supported by candidate-supplied information; JD keywords are prioritization signals, not evidence.
+
+The renderer uses the approved v7 11pt body, US Letter margins, blue rules, single-column skill paragraphs and up-to-two-page budget. Historical certification dates can be entered separately in the profile, survive profile reloads and new generation, and do not imply current validity. Personal resumes and credential URLs remain browser-local; no candidate-specific facts are bundled into the template.

@@ -56,10 +56,10 @@ it("retains valid nonempty categories during one-page trimming", () => {
   }
 });
 
-it("permits narrow skill supplements without manufacturing experience claims", () => {
+it("requires source evidence for skills without manufacturing experience claims", () => {
   expect(prompt).toContain("saved inventory may be incomplete");
-  expect(prompt).toContain("naturally fits the candidate's existing project technologies");
-  expect(prompt).toContain("A supplemented skill is not evidence of past use");
+  expect(prompt).toContain("another supplied source supports it");
+  expect(prompt).toContain("A JD match does not itself establish knowledge or professional use");
   expect(prompt).toContain("3-6 concise, nonempty categories");
-  expect(prompt).toContain("15-25 useful skills");
+  expect(prompt).toContain("never pad a list with unsupported tools");
 });

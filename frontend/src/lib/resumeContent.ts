@@ -74,7 +74,7 @@ function guidance(entry: { aiGuidance?: { onlyIfStronglyRelevant?: boolean; inst
 
 export function resumeContentSource(profile: ResumeProfileUpdate) {
   return {
-    ...(roles(profile).some(role => guidance(role)) ? { experienceGuidancePolicy: "Follow each entry's optional aiGuidance when selecting and presenting that experience. onlyIfStronglyRelevant means omit that entry unless it strongly matches the target JD. Follow its instruction, including bullet limits across the whole entry, emphasis, or role-specific inclusion. Guidance is user preference, not factual resume content: never print it. Preserve factual grounding, schema and one-page constraints. Entries without guidance retain the normal selection behavior." } : {}),
+    ...(roles(profile).some(role => guidance(role)) ? { experienceGuidancePolicy: "Follow each entry's optional aiGuidance when selecting and presenting that experience. onlyIfStronglyRelevant means omit that entry unless it strongly matches the target JD. Follow its instruction, including bullet limits across the whole entry, emphasis, or role-specific inclusion. Guidance is user preference, not factual resume content: never print it. Preserve factual grounding, schema and two-page constraints. Entries without guidance retain the normal selection behavior." } : {}),
     educationContext: profile.education.map(({ institution, degree }) => ({ institution, degree })),
     experience: roles(profile).map(role => ({
       sourceId: role.sourceId, organization: role.organization, title: role.title, type: role.type,
@@ -160,6 +160,7 @@ export function assembleResume(raw: string, profile: ResumeProfileUpdate): Struc
     // AI may shorten descriptions, but cannot silently omit saved credentials.
     certifications: certifications(profile).map(source => ({
       name: source.name, url: source.url,
+      ...(source.date !== undefined ? { date: source.date } : {}),
       description: selectedCertifications.find(entry => entry.name === source.name && entry.url === source.url)?.description ?? "",
     })),
     technicalSkills: content.technicalSkills,

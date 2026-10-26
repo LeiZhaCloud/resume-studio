@@ -137,10 +137,13 @@ describe("resume version persistence", () => {
     const request = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body));
     expect(request).toMatchObject({ model: "deepseek-flash", response_format: { type: "json_object" }, stream: false });
     expect(request.messages[0].content).toContain("JSON");
+    expect(request.messages[0].content).toContain("Default template: Classic Blue v7");
     expect(request.messages[1].content).toContain("Custom Systems");
     expect(vi.mocked(fetch).mock.calls[0][1]?.headers).toMatchObject({ Authorization: "Bearer deepseek-test-key" });
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(version.structured_resume) } }] })));
     const refined = await api.refineResumeVersion(version.id, app.id, JSON.stringify(version.structured_resume), "Keep factual details");
+    const refinementRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[1][1]?.body));
+    expect(refinementRequest.messages[0].content).toContain("Default template: Classic Blue v7");
     expect(refined.parent_version_id).toBe(version.id);
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: '{"ok":true}' } }] })));
     expect(await api.testAiConnection(settings)).toBe(true);
@@ -148,6 +151,16 @@ describe("resume version persistence", () => {
     await expect(api.generateResumeVersion(app.id, "")).rejects.toThrow("length");
     expect(fetch).toHaveBeenCalledTimes(4);
     expect(await api.resumes()).toHaveLength(2);
+  });
+
+  it("preserves historical credential dates across profile reload and new generation", async () => {
+    const credential = { name: "Azure Expert", url: "https://example.com/credential", description: "", date: "Renewed 2025" };
+    await api.updateProfile({ ...profile, certifications: [credential] });
+    expect((await api.profile()).certifications).toEqual([credential]);
+    await api.saveAiSettings({ provider: "openai", model: "gpt-5.6-luna", api_key: "test-local" });
+    const app = await api.createApplication({ company_id: 1, job_title: "Infrastructure Engineer", job_description: "Azure Terraform", notes: "" });
+    const version = await api.generateResumeVersion(app.id, "");
+    expect(version.structured_resume.certifications).toEqual([credential]);
   });
 
   it("repairs existing layout and restores all credentials without AI or changing the original, even over one page", async () => {

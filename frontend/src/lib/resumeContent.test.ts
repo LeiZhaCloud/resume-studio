@@ -102,3 +102,9 @@ it("retains every profile credential even when AI selects none, and sorts AI-reo
     { name: "CKA", url: "", description: "" },
   ]);
 });
+
+it("copies a supplied historical certification date locally even when AI omits the credential", () => {
+  const input = { ...profile, certifications: [{ name: "Azure Expert", url: "https://example.com/credential", description: "Private issuer-status note", date: "Renewed 2025" }] };
+  const resume = assembleResume(JSON.stringify({ ...content, certifications: [] }), input);
+  expect(resume.certifications).toEqual([{ name: "Azure Expert", url: "https://example.com/credential", description: "", date: "Renewed 2025" }]);
+});
