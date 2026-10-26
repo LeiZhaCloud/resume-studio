@@ -13,6 +13,7 @@ const certification = RESUME_JSON_SCHEMA.properties.certifications.items.propert
 
 // Only editable content crosses the generation boundary; identity fields are assembled locally.
 export const RESUME_CONTENT_SCHEMA = object({
+  summary: RESUME_JSON_SCHEMA.properties.summary,
   experience: list(object({ sourceId: reference, subprojects: list(object({ sourceId: reference, ...sub.properties })) })),
   projects: list(object({ sourceId: reference, technologies: project.technologies, bullets: project.bullets })),
   certifications: list(object({ sourceId: reference, description: certification.description })),
@@ -40,6 +41,7 @@ export function resumeContentSchema(profile: ResumeProfileUpdate) {
     sourceId: id(entry.sourceId), description: certification.description,
   }));
   return object({
+    summary: RESUME_JSON_SCHEMA.properties.summary,
     experience: choices(experience, object({ sourceId: reference, subprojects: list(sub) })),
     projects: choices(projects, object({ sourceId: reference, technologies: project.technologies, bullets: project.bullets })),
     certifications: choices(certificates, object({ sourceId: reference, description: certification.description })),
@@ -112,7 +114,8 @@ function lookup<T extends { sourceId: string }>(value: unknown, available: T[], 
 }
 
 export function assembleResume(raw: string, profile: ResumeProfileUpdate): StructuredResume {
-  const content = record(JSON.parse(raw), ["experience", "projects", "certifications", "technicalSkills"]);
+  const parsed = JSON.parse(raw);
+  const content = record(parsed, ["experience", "projects", "certifications", "technicalSkills", ...("summary" in parsed ? ["summary"] : [])]);
   const seenRoles = new Set<string>();
   const experience = array(content.experience).map(value => {
     const item = record(value, ["sourceId", "subprojects"]);
@@ -143,6 +146,7 @@ export function assembleResume(raw: string, profile: ResumeProfileUpdate): Struc
     return { name: source.name, url: source.url, description: item.description };
   });
   const resume = {
+    ...(content.summary !== undefined ? { summary: content.summary } : {}),
     header: {
       name: [profile.firstName.trim(), profile.lastName.trim()].filter(Boolean).join(" "),
       email: profile.email, phone: profile.phone, location: profile.location,

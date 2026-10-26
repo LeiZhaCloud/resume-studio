@@ -3,6 +3,19 @@ import { completeResume } from "../test/resumeFixtures";
 import { escapeLatex, inspectPdf, normalizeResumeText, renderResumeLatex } from "./resumeLatex";
 
 describe("fixed LaTeX renderer", () => {
+  it("prints a professional summary before skills and omits an empty summary", () => {
+    const tex = renderResumeLatex({ ...completeResume, summary: "Systems & cloud infrastructure engineer." });
+    expect(tex.indexOf("\\section{Professional Summary}")).toBeLessThan(tex.indexOf("\\section{Technical Skills}"));
+    expect(tex).toContain("Systems \\& cloud infrastructure engineer.");
+    expect(renderResumeLatex(completeResume)).not.toContain("\\section{Professional Summary}");
+  });
+  it("starts an explicitly marked role on a new page without changing chronology", () => {
+    const resume = structuredClone(completeResume);
+    resume.experience[1].pageBreakBefore = true;
+    const tex = renderResumeLatex(resume);
+    expect(tex).toContain(`\\newpage\n  \\resumeSubheading{${escapeLatex(resume.experience[1].title)}}`);
+    expect(tex.indexOf(escapeLatex(resume.experience[0].title))).toBeLessThan(tex.indexOf(escapeLatex(resume.experience[1].title)));
+  });
   it("uses the locked section order and keeps work and research together", () => {
     const tex = renderResumeLatex(completeResume);
     const education = tex.indexOf("\\section{Education}");

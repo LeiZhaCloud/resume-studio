@@ -162,6 +162,7 @@ export interface Application {
 }
 
 export interface StructuredResume {
+  summary?: string;
   header: {
     name: string;
     email: string;
@@ -179,6 +180,7 @@ export interface StructuredResume {
     details: string[];
   }>;
   experience: Array<{
+    pageBreakBefore?: boolean;
     organization: string;
     title: string;
     location: string;

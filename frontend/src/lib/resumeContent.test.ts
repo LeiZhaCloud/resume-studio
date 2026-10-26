@@ -15,6 +15,11 @@ const profile: ResumeProfileUpdate = {
   skills: { languages: [], frameworks: [], developerTools: [], libraries: [] }, skillInventory: "Python, Rust",
 };
 const bullet = { text: "Built a Python service.", highlights: ["Python"] };
+it("assembles a summary without allowing generated identity fields", () => {
+  const result = assembleResume(JSON.stringify({ ...content, summary: "Engineer experienced in systems automation." }), profile);
+  expect(result.summary).toBe("Engineer experienced in systems automation.");
+  expect(result.header.name).toBe("Ada Lovelace");
+});
 it("constrains generated IDs to their profile role and forbids nonexistent projects", () => {
   const schema = JSON.parse(JSON.stringify(resumeContentSchema(profile)));
   const branches = schema.properties.experience.items.anyOf;

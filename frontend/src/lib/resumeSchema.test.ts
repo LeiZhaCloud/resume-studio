@@ -2,6 +2,17 @@ import { describe, expect, it } from "vitest";
 import { completeResume } from "../test/resumeFixtures";
 import { normalizeStoredStructuredResume, parseStructuredResumeJson, trimLowestPriorityContent } from "./resumeSchema";
 describe("structured resume schema", () => {
+  it("preserves an optional professional summary through parsing and stored normalization", () => {
+    const source = { ...completeResume, summary: "Infrastructure engineer experienced in Linux and cloud operations." };
+    expect(parseStructuredResumeJson(JSON.stringify(source))).toEqual(source);
+    expect(normalizeStoredStructuredResume(source)).toEqual(source);
+  });
+  it("preserves explicit role pagination and rejects a non-boolean page break", () => {
+    const source = structuredClone(completeResume);
+    source.experience[1].pageBreakBefore = true;
+    expect(parseStructuredResumeJson(JSON.stringify(source))).toEqual(source);
+    expect(() => parseStructuredResumeJson(JSON.stringify({ ...source, experience: source.experience.map(e => ({ ...e, pageBreakBefore: "yes" })) }))).toThrow("pageBreakBefore must be a boolean");
+  });
   it("never drops certification names or links across all local fitting steps", () => {
     let current = { ...structuredClone(completeResume), certifications: Array.from({ length: 7 }, (_, index) => ({ name: `Credential ${index}`, url: `https://example.com/${index}`, description: "Short focus" })) };
     for (let step = 0; step < 150; step++) {

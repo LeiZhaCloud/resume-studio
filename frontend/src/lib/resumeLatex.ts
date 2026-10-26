@@ -145,7 +145,7 @@ function experienceSection(resume: StructuredResume): string {
       body = bulletList(legacyBullets as Array<{ text: string; highlights: string[] }>).replace(/\n/g, "\n  ");
       if (body) body = `  ${body}`;
     }
-    return [header, body].filter(Boolean).join("\n");
+    return [entry.pageBreakBefore ? "\\newpage" : "", header, body].filter(Boolean).join("\n");
   });
   return ["\\section{Experience}", "\\resumeSubHeadingListStart", ...entries, "\\resumeSubHeadingListEnd"].join("\n");
 }
@@ -174,7 +174,7 @@ function technicalSkillsSection(resume: StructuredResume): string {
   })).filter(group => group.skills.length);
   const rows = groups.map(group => [
     "\\noindent\\begin{minipage}[t]{0.225\\linewidth}\\small",
-    `\\textbf{${escapeLatex(group.name)}}`,
+    `\\textbf{${escapeLatex(group.name)}}:`,
     "\\end{minipage}\\hfill\\begin{minipage}[t]{0.75\\linewidth}\\small",
     group.skills.map(escapeLatex).join(", "),
     "\\end{minipage}\\par\\vspace{5pt}",
@@ -254,6 +254,7 @@ export function renderResumeLatex(resume: StructuredResume): string {
 \noindent{\fontsize{25}{29}\selectfont\bfseries ${escapeLatex(resume.header.name.toUpperCase())}}\par\vspace{8pt}
 {\small ${contact}}\par\vspace{3pt}
 
+${resume.summary?.trim() ? `\\section{Professional Summary}\n{\\small ${escapeLatex(resume.summary)}}\\par\n` : ""}
 ${technicalSkillsSection(resume)}
 ${certifications ? `\n${certifications}\n` : ""}
 ${experienceSection(resume)}

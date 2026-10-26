@@ -5,8 +5,9 @@ import type { StructuredResume } from "../types";
 export const RESUME_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["header", "education", "experience", "projects", "certifications", "technicalSkills"],
+  required: ["summary", "header", "education", "experience", "projects", "certifications", "technicalSkills"],
   properties: {
+    summary: { type: "string", maxLength: 1000 },
     header: {
       type: "object",
       additionalProperties: false,
@@ -35,8 +36,9 @@ export const RESUME_JSON_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["organization", "title", "location", "dates", "type", "subprojects"],
+        required: ["pageBreakBefore", "organization", "title", "location", "dates", "type", "subprojects"],
         properties: {
+          pageBreakBefore: { type: "boolean" },
           organization: { type: "string" },
           title: { type: "string" },
           location: { type: "string" },
@@ -194,7 +196,8 @@ function subprojectArray(value: unknown, path: string): Array<{ name: string; bu
 function validateResume(value: unknown, requireBothExperienceTypes: boolean): StructuredResume {
   // Older saved versions predate certifications; preserve their content without a DB reset.
   const stored = asRecord(value, "resume");
-  const root = exactRecord({ certifications: [], ...stored }, "resume", ["header", "education", "experience", "projects", "certifications", "technicalSkills"]);
+  const root = exactRecord({ certifications: [], ...stored }, "resume", ["header", "education", "experience", "projects", "certifications", "technicalSkills", ...("summary" in stored ? ["summary"] : [])]);
+  const summary = "summary" in root ? text(root.summary, "summary") : undefined;
   const headerValue = exactRecord(root.header, "header", ["name", "email", "phone", "location", "linkedin", "github", "website"]);
   const header = {
     name: text(headerValue.name, "header.name", true),
@@ -235,10 +238,12 @@ function validateResume(value: unknown, requireBothExperienceTypes: boolean): St
         subprojects: [{ name: "", bullets }],
       };
     }
-    const item = exactRecord(value, `experience[${index}]`, ["organization", "title", "location", "dates", "type", "subprojects"]);
+    const item = exactRecord(value, `experience[${index}]`, ["organization", "title", "location", "dates", "type", "subprojects", ...("pageBreakBefore" in raw ? ["pageBreakBefore"] : [])]);
+    if ("pageBreakBefore" in item && typeof item.pageBreakBefore !== "boolean") throw new Error("pageBreakBefore must be a boolean");
     const kind = text(item.type, `experience[${index}].type`, true);
     if (kind !== "work" && kind !== "research") throw new Error(`experience[${index}].type must be work or research`);
     return {
+      ...("pageBreakBefore" in item ? { pageBreakBefore: item.pageBreakBefore as boolean } : {}),
       organization: text(item.organization, `experience[${index}].organization`, true),
       title: text(item.title, `experience[${index}].title`, true),
       location: text(item.location, `experience[${index}].location`),
@@ -307,7 +312,7 @@ function validateResume(value: unknown, requireBothExperienceTypes: boolean): St
     };
     if (!skillCategories(technicalSkills).some(group => group.skills.length)) throw new Error("technicalSkills must contain at least one skill");
   }
-  return { header, education, experience, projects, certifications, technicalSkills };
+  return { ...(summary !== undefined ? { summary } : {}), header, education, experience, projects, certifications, technicalSkills };
 }
 
 export function parseStructuredResumeJson(raw: string, requireBothExperienceTypes = true): StructuredResume {
